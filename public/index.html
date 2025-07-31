@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sports Betting Analysis</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Sports Betting Analysis 🏈🏀⚽</h1>
+            <p>Select a sport and a game to get an AI-powered analysis.</p>
+        </header>
+
+        <main>
+            <div class="controls">
+                <div class="select-group">
+                    <label for="sport-select">Sport:</label>
+                    <select id="sport-select">
+                        <option value="">Loading Sports...</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label for="game-select">Upcoming Game:</label>
+                    <select id="game-select">
+                        <option value="">Select a Sport First</option>
+                    </select>
+                </div>
+                <button id="analyze-btn">Analyze Game</button>
+            </div>
+
+            <div id="results-container" class="results-hidden">
+                <h2>Analysis Results</h2>
+                <div id="loader" class="loader-hidden"></div>
+                <div id="results-content">
+                    <div class="result-item">
+                        <strong>Suggested Bet:</strong> <span id="suggested-bet"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Confidence Level:</strong> <span id="confidence-level"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Justification:</strong> <p id="justification"></p>
+                    </div>
+                </div>
+                 <div id="error-message" class="error-hidden"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
