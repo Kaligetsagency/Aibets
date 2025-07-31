@@ -74,24 +74,45 @@ app.post('/api/analyze', async (req, res) => {
         if (!game) {
             return res.status(404).json({ error: 'Game not found in the latest odds data.' });
         }
+        
+        // **NEW**: Fetch additional stats (this is a placeholder for a real stats API call)
+        const additionalData = {
+            homeTeamForm: "W, W, L, W, W",
+            awayTeamForm: "L, W, L, L, W",
+            headToHead: `${homeTeam} won 3 of the last 5 meetings.`,
+            teamNews: `Key player for ${awayTeam} is questionable with an injury.`
+        };
 
-        // 2. Construct the prompt for Gemini AI
+        // 2. Construct a more detailed prompt for Gemini AI
         const prompt = `
-            You are an expert sports betting analyst. Your task is to provide a betting recommendation for an upcoming sports match.
-            Analyze the provided data and return a single, minified JSON object with three keys: "suggestedBet", "confidenceLevel", and "justification".
+            You are a professional sports betting analyst. Your goal is to provide a comprehensive and precise betting recommendation based on a wide range of data.
+            
+            **Task**: Analyze the provided data and return a single, minified JSON object with the following keys: "suggestedBet", "confidenceLevel", "justification", "riskAssessment", and "alternativeBet".
             Do not include any other text, markdown formatting, or explanations outside of the JSON object.
 
-            Match Details:
-            - Home Team: ${game.home_team}
-            - Away Team: ${game.away_team}
-            - Sport: ${game.sport_title}
+            **Analysis Data:**
+            - **Match**: ${game.home_team} (Home) vs. ${game.away_team} (Away)
+            - **Sport**: ${game.sport_title}
+            
+            **Contextual Data:**
+            - **Home Team Form (Last 5)**: ${additionalData.homeTeamForm}
+            - **Away Team Form (Last 5)**: ${additionalData.awayTeamForm}
+            - **Head-to-Head History**: ${additionalData.headToHead}
+            - **Key Team News**: ${additionalData.teamNews}
 
-            Available Betting Odds (from DraftKings, if available):
-            - Head-to-Head (Moneyline): ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'h2h')?.outcomes)}
-            - Point Spread: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'spreads')?.outcomes)}
-            - Totals (Over/Under): ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'totals')?.outcomes)}
+            **Betting Odds (DraftKings):**
+            - **Moneyline**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'h2h')?.outcomes)}
+            - **Point Spread**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'spreads')?.outcomes)}
+            - **Totals (Over/Under)**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'totals')?.outcomes)}
 
-            Based on this data, provide your expert analysis and generate the JSON output. Consider factors like which team is favored and the value presented by the odds.
+            **Instructions for Analysis:**
+            1.  **Synthesize All Data**: Weigh the betting odds against the contextual data (form, H2H, news). Don't rely only on the odds.
+            2.  **Identify Value**: Determine if the odds offer good value relative to the statistical probability of the outcome.
+            3.  **Justify your Decision**: In the 'justification', clearly explain WHY you chose the bet, referencing specific data points (e.g., "Given the home team's strong form and the away team's key injury...").
+            4.  **Assess Risk**: In 'riskAssessment', describe the primary risks associated with your suggested bet.
+            5.  **Provide an Alternative**: In 'alternativeBet', suggest a secondary, perhaps safer, bet based on the data.
+
+            Generate the JSON output now.
         `;
 
         // 3. Call the Gemini API
