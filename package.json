@@ -1,12 +1,12 @@
 {
-  "name": "sports-analysis-app",
+  "name": "ai-betting-analysis",
   "version": "1.0.0",
-  "description": "An AI-powered sports betting analysis application.",
+  "description": "An application for sports betting analysis using a sports data API and Gemini AI.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "author": "",
+  "author": "Gemini",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.3.1",
