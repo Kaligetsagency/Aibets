@@ -18,37 +18,38 @@ app.use(express.static('public'));
 const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Base URL for the Football API
-const FOOTBALL_API_URL = 'https://v3.football.api-sports.io';
+// Base URL for the apifootball.com API
+const FOOTBALL_API_URL = 'https://apiv2.apifootball.com/';
 
-// Helper function to make requests to the Football API
-async function fetchFootballData(endpoint) {
-    const response = await fetch(`${FOOTBALL_API_URL}${endpoint}`, {
-        method: 'GET',
-        headers: {
-            'x-rapidapi-key': FOOTBALL_API_KEY
-        }
+// Helper function to make requests to the apifootball.com API
+async function fetchFootballData(params) {
+    const queryParams = new URLSearchParams({
+        ...params,
+        APIkey: FOOTBALL_API_KEY
     });
+
+    const response = await fetch(`${FOOTBALL_API_URL}?${queryParams.toString()}`);
 
     if (!response.ok) {
         throw new Error(`Football API error! Status: ${response.status}`);
     }
 
     const data = await response.json();
-    if (data.errors && Object.keys(data.errors).length > 0) {
-        console.error('Football API returned an error:', data.errors);
-        throw new Error(`Football API Error: ${JSON.stringify(data.errors)}`);
+
+    if (data.error) {
+        console.error('Football API returned an error:', data.error);
+        throw new Error(`Football API Error: ${data.error}`);
     }
 
-    return data.response;
+    return data;
 }
 
 /**
- * Endpoint to get a list of leagues
+ * Endpoint to get a list of leagues.
  */
 app.get('/api/leagues', async (req, res) => {
     try {
-        const leagues = await fetchFootballData('/leagues');
+        const leagues = await fetchFootballData({ action: 'get_leagues' });
         res.json(leagues);
     } catch (error) {
         console.error('Failed to fetch leagues:', error);
@@ -57,12 +58,16 @@ app.get('/api/leagues', async (req, res) => {
 });
 
 /**
- * Endpoint to get a list of teams for a specific league and season
+ * Endpoint to get a list of teams for a specific league (from standings).
  */
-app.get('/api/teams/:leagueId/:season', async (req, res) => {
-    const { leagueId, season } = req.params;
+app.get('/api/teams/:leagueId', async (req, res) => {
+    const { leagueId } = req.params;
     try {
-        const teams = await fetchFootballData(`/teams?league=${leagueId}&season=${season}`);
+        const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
+        const teams = standings.map(team => ({
+            id: team.team_id,
+            name: team.team_name,
+        }));
         res.json(teams);
     } catch (error) {
         console.error('Failed to fetch teams:', error);
@@ -71,13 +76,26 @@ app.get('/api/teams/:leagueId/:season', async (req, res) => {
 });
 
 /**
- * Endpoint to get upcoming fixtures for a specific team, league and season
+ * Endpoint to get upcoming fixtures for a specific league (not team specific).
  */
-app.get('/api/fixtures/:teamId/:leagueId/:season', async (req, res) => {
-    const { teamId, leagueId, season } = req.params;
+app.get('/api/fixtures/:leagueId', async (req, res) => {
+    const { leagueId } = req.params;
+    // Get fixtures for the next 7 days
+    const fromDate = new Date().toISOString().slice(0, 10);
+    const toDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
     try {
-        const fixtures = await fetchFootballData(`/fixtures?league=${leagueId}&season=${season}&team=${teamId}&status=NS`); // status=NS means Not Started
-        res.json(fixtures);
+        const fixtures = await fetchFootballData({
+            action: 'get_events',
+            league_id: leagueId,
+            from: fromDate,
+            to: toDate,
+        });
+
+        // Filter for upcoming (not started) matches
+        const upcomingFixtures = fixtures.filter(fixture => fixture.match_status === '' || fixture.match_status === 'FT');
+
+        res.json(upcomingFixtures);
     } catch (error) {
         console.error('Failed to fetch fixtures:', error);
         res.status(500).json({ error: error.message });
@@ -85,61 +103,85 @@ app.get('/api/fixtures/:teamId/:leagueId/:season', async (req, res) => {
 });
 
 /**
- * Endpoint for AI analysis
- * Takes league ID, fixture ID as input.
+ * Endpoint for AI analysis.
+ * Takes fixture ID as input.
  * Fetches data, constructs a prompt, and sends to Gemini.
  */
 app.post('/api/analyze', async (req, res) => {
-    const { fixtureId, homeTeamId, awayTeamId, leagueId, season } = req.body;
+    const { fixtureId, leagueId } = req.body;
 
-    if (!fixtureId || !homeTeamId || !awayTeamId || !leagueId || !season) {
+    if (!fixtureId || !leagueId) {
         return res.status(400).json({ error: 'Missing required parameters for analysis.' });
     }
 
     try {
         // Fetch specific fixture details
-        const fixtureResponse = await fetchFootballData(`/fixtures?id=${fixtureId}`);
+        const fixtureResponse = await fetchFootballData({
+            action: 'get_events',
+            match_id: fixtureId
+        });
         const fixture = fixtureResponse.length > 0 ? fixtureResponse[0] : null;
 
-        // Fetch head-to-head statistics
-        const h2hResponse = await fetchFootballData(`/fixtures/headtohead?h2h=${homeTeamId}-${awayTeamId}`);
-        const h2hData = h2hResponse.slice(0, 5); // Get last 5 matches
-
-        // Fetch team statistics for both teams
-        const homeTeamStats = await fetchFootballData(`/teams/statistics?league=${leagueId}&season=${season}&team=${homeTeamId}`);
-        const awayTeamStats = await fetchFootballData(`/teams/statistics?league=${leagueId}&season=${season}&team=${awayTeamId}`);
-
-        if (!fixture || !homeTeamStats || !awayTeamStats) {
-            return res.status(404).json({ error: 'Could not retrieve all necessary data for analysis.' });
+        if (!fixture) {
+            return res.status(404).json({ error: 'Fixture not found.' });
         }
+
+        // Fetch standings to get home/away team stats
+        const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
+
+        const homeTeamStats = standings.find(s => s.team_id === fixture.match_hometeam_id);
+        const awayTeamStats = standings.find(s => s.team_id === fixture.match_awayteam_id);
+
+        if (!homeTeamStats || !awayTeamStats) {
+            return res.status(404).json({ error: 'Could not retrieve team standings for analysis.' });
+        }
+
+        // Fetch recent matches for head-to-head
+        const h2hResponse = await fetchFootballData({
+            action: 'get_events',
+            from: '2023-01-01', // Example date range
+            to: '2024-12-31',
+            league_id: leagueId,
+        });
+
+        const h2hData = h2hResponse
+            .filter(match =>
+                (match.match_hometeam_id === homeTeamStats.team_id && match.match_awayteam_id === awayTeamStats.team_id) ||
+                (match.match_hometeam_id === awayTeamStats.team_id && match.match_awayteam_id === homeTeamStats.team_id)
+            )
+            .slice(0, 5); // Get last 5 matches
 
         const prompt = `
             Analyze the following football match and provide a betting recommendation.
             
             Match Details:
-            - Home Team: ${fixture.teams.home.name}
-            - Away Team: ${fixture.teams.away.name}
-            - Date: ${new Date(fixture.fixture.date).toLocaleString()}
+            - Home Team: ${fixture.match_hometeam_name}
+            - Away Team: ${fixture.match_awayteam_name}
+            - Date: ${fixture.match_date}
             
             Recent Head-to-Head (last 5 matches):
-            ${h2hData.map(match => `  - ${match.teams.home.name} ${match.goals.home} - ${match.goals.away} ${match.teams.away.name} (Winner: ${match.teams.home.winner === true ? match.teams.home.name : match.teams.away.name})`).join('\n')}
+            ${h2hData.map(match => `  - ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n')}
             
             Home Team Statistics:
-            - Form: ${homeTeamStats.form}
-            - Goals For (Total): ${homeTeamStats.goals.for.total.total}
-            - Goals Against (Total): ${homeTeamStats.goals.against.total.total}
+            - League Position: ${homeTeamStats.overall_league_position}
+            - Overall Points: ${homeTeamStats.overall_league_points}
+            - Form (L-W-W...): ${homeTeamStats.overall_league_payed} matches played
+            - Goals For: ${homeTeamStats.overall_league_GF}
+            - Goals Against: ${homeTeamStats.overall_league_GA}
             
             Away Team Statistics:
-            - Form: ${awayTeamStats.form}
-            - Goals For (Total): ${awayTeamStats.goals.for.total.total}
-            - Goals Against (Total): ${awayTeamStats.goals.against.total.total}
+            - League Position: ${awayTeamStats.overall_league_position}
+            - Overall Points: ${awayTeamStats.overall_league_points}
+            - Form (L-W-W...): ${awayTeamStats.overall_league_payed} matches played
+            - Goals For: ${awayTeamStats.overall_league_GF}
+            - Goals Against: ${awayTeamStats.overall_league_GA}
             
             Based on this data, provide a structured JSON response with a predicted outcome (e.g., "Home Win", "Away Win", "Draw"), a recommended bet (e.g., "Moneyline - Home Team", "Over 2.5 Goals"), and a confidence score (from 0 to 100).
         `;
 
         const chatHistory = [];
         chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-        
+
         // Define the JSON schema for the response
         const payload = {
             contents: chatHistory,
@@ -172,7 +214,7 @@ app.post('/api/analyze', async (req, res) => {
         }
 
         const aiResult = await aiResponse.json();
-        
+
         if (aiResult.candidates && aiResult.candidates.length > 0 &&
             aiResult.candidates[0].content && aiResult.candidates[0].content.parts &&
             aiResult.candidates[0].content.parts.length > 0) {
