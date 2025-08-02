@@ -15,8 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const recommendedBetEl = document.getElementById('recommended-bet');
     const confidenceScoreEl = document.getElementById('confidence-score');
 
-    const FOOTBALL_API_SEASON = 2023; // Hardcoded season for this example
-
     /**
      * Shows a custom message box instead of a standard browser alert.
      * @param {string} message The message to display.
@@ -53,10 +51,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             leagueSelect.innerHTML = '<option value="">Select a League</option>';
-            leagues.forEach(league => {
+            // apifootball.com returns all leagues as an array of standings.
+            // We need to extract the unique leagues from this data.
+            const uniqueLeagues = new Map();
+            if (Array.isArray(leagues)) {
+                leagues.forEach(league => {
+                    if (league.league_id && !uniqueLeagues.has(league.league_id)) {
+                        uniqueLeagues.set(league.league_id, {
+                            id: league.league_id,
+                            name: league.league_name
+                        });
+                    }
+                });
+            }
+
+            uniqueLeagues.forEach(league => {
                 const option = document.createElement('option');
-                option.value = league.league.id;
-                option.textContent = league.league.name;
+                option.value = league.id;
+                option.textContent = league.name;
                 leagueSelect.appendChild(option);
             });
         } catch (error) {
@@ -78,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!leagueId) return;
 
         try {
-            const response = await fetch(`/api/teams/${leagueId}/${FOOTBALL_API_SEASON}`);
+            const response = await fetch(`/api/teams/${leagueId}`);
             const teams = await response.json();
 
             if (!response.ok) {
@@ -86,10 +98,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             teamSelect.disabled = false;
+            // The API returns teams from standings, which might have duplicates. Use a Set to store unique teams.
+            const uniqueTeams = new Map();
             teams.forEach(team => {
+                if (!uniqueTeams.has(team.id)) {
+                    uniqueTeams.set(team.id, team);
+                }
+            });
+            uniqueTeams.forEach(team => {
                 const option = document.createElement('option');
-                option.value = team.team.id;
-                option.textContent = team.team.name;
+                option.value = team.id;
+                option.textContent = team.name;
                 teamSelect.appendChild(option);
             });
         } catch (error) {
@@ -99,30 +118,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Fetches fixtures for a given team and populates the dropdown.
-     * @param {string} teamId - The ID of the team.
+     * Fetches fixtures for a given league and populates the dropdown.
      */
-    async function fetchFixtures(teamId) {
+    async function fetchFixtures(leagueId) {
         fixtureSelect.innerHTML = '<option value="">Select a Fixture</option>';
         fixtureSelect.disabled = true;
-        const leagueId = leagueSelect.value;
-        if (!teamId || !leagueId) return;
+        
+        if (!leagueId) return;
 
         try {
-            const response = await fetch(`/api/fixtures/${teamId}/${leagueId}/${FOOTBALL_API_SEASON}`);
+            const response = await fetch(`/api/fixtures/${leagueId}`);
             const fixtures = await response.json();
-
+            
             if (!response.ok) {
                 throw new Error(fixtures.error);
             }
-
+            
             fixtureSelect.disabled = false;
-            fixtures.forEach(fixture => {
+            
+            const upcomingFixtures = fixtures.filter(f => f.match_status === '');
+
+            upcomingFixtures.forEach(fixture => {
                 const option = document.createElement('option');
-                option.value = fixture.fixture.id;
-                option.textContent = `${fixture.teams.home.name} vs ${fixture.teams.away.name}`;
-                option.dataset.homeTeamId = fixture.teams.home.id;
-                option.dataset.awayTeamId = fixture.teams.away.id;
+                option.value = fixture.match_id;
+                option.textContent = `${fixture.match_hometeam_name} vs ${fixture.match_awayteam_name}`;
+                option.dataset.homeTeamId = fixture.match_hometeam_id;
+                option.dataset.awayTeamId = fixture.match_awayteam_id;
                 fixtureSelect.appendChild(option);
             });
         } catch (error) {
@@ -135,22 +156,16 @@ document.addEventListener('DOMContentLoaded', () => {
     leagueSelect.addEventListener('change', (e) => {
         const leagueId = e.target.value;
         fetchTeams(leagueId);
-    });
-
-    teamSelect.addEventListener('change', (e) => {
-        const teamId = e.target.value;
-        fetchFixtures(teamId);
+        fetchFixtures(leagueId);
     });
 
     analyzeBtn.addEventListener('click', async () => {
         const fixtureOption = fixtureSelect.options[fixtureSelect.selectedIndex];
         const fixtureId = fixtureOption ? fixtureOption.value : null;
-        const homeTeamId = fixtureOption ? fixtureOption.dataset.homeTeamId : null;
-        const awayTeamId = fixtureOption ? fixtureOption.dataset.awayTeamId : null;
         const leagueId = leagueSelect.value;
 
-        if (!fixtureId || !homeTeamId || !awayTeamId) {
-            showMessageBox('Please select a league, team, and fixture first.');
+        if (!fixtureId || !leagueId) {
+            showMessageBox('Please select a league and a fixture first.');
             return;
         }
 
@@ -168,10 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     fixtureId,
-                    homeTeamId,
-                    awayTeamId,
-                    leagueId,
-                    season: FOOTBALL_API_SEASON
+                    leagueId
                 })
             });
 
