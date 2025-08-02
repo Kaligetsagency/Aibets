@@ -18,8 +18,8 @@ app.use(express.static('public'));
 const FOOTBALL_API_KEY = process.env.FOOTBALL_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Base URL for the apifootball.com API
-const FOOTBALL_API_URL = 'https://apiv2.apifootball.com/';
+// Base URL for the apifootball.com API (v3 as per documentation)
+const FOOTBALL_API_URL = 'https://apiv3.apifootball.com/';
 
 // Helper function to make requests to the apifootball.com API
 async function fetchFootballData(params) {
@@ -40,29 +40,22 @@ async function fetchFootballData(params) {
         console.error('Football API returned an error:', data.error);
         throw new Error(`Football API Error: ${data.error}`);
     }
+    
+    // The API returns a message if no data is found, which should be treated as a successful empty response
+    if (data.length === 1 && typeof data[0] === 'string') {
+        return [];
+    }
 
     return data;
 }
 
 /**
- * Endpoint to get a list of leagues from standings, which is more reliable.
+ * Endpoint to get a list of leagues.
  */
 app.get('/api/leagues', async (req, res) => {
     try {
-        const standings = await fetchFootballData({ action: 'get_standings' });
-        // apifootball.com API returns all leagues by default, we need to extract them from the standings data.
-        const uniqueLeagues = new Map();
-        if (Array.isArray(standings)) {
-            standings.forEach(s => {
-                if (s.league_id && !uniqueLeagues.has(s.league_id)) {
-                    uniqueLeagues.set(s.league_id, {
-                        league_id: s.league_id,
-                        league_name: s.league_name
-                    });
-                }
-            });
-        }
-        res.json(Array.from(uniqueLeagues.values()));
+        const leagues = await fetchFootballData({ action: 'get_leagues' });
+        res.json(leagues);
     } catch (error) {
         console.error('Failed to fetch leagues:', error);
         res.status(500).json({ error: error.message });
@@ -70,17 +63,18 @@ app.get('/api/leagues', async (req, res) => {
 });
 
 /**
- * Endpoint to get a list of teams for a specific league (from standings).
+ * Endpoint to get a list of teams for a specific league.
  */
 app.get('/api/teams/:leagueId', async (req, res) => {
     const { leagueId } = req.params;
     try {
-        const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
-        const teams = standings.map(team => ({
-            id: team.team_id,
+        const teams = await fetchFootballData({ action: 'get_teams', league_id: leagueId });
+        // The API returns a single team object if only one is found, so we ensure it's an array.
+        const teamList = Array.isArray(teams) ? teams : [teams];
+        res.json(teamList.map(team => ({
+            id: team.team_key, // The v3 API uses team_key
             name: team.team_name,
-        }));
-        res.json(teams);
+        })));
     } catch (error) {
         console.error('Failed to fetch teams:', error);
         res.status(500).json({ error: error.message });
@@ -104,8 +98,11 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
             to: toDate,
         });
 
-        // Filter for upcoming (not started) matches
-        const upcomingFixtures = fixtures.filter(fixture => fixture.match_status === '');
+        // The API might return an error message in an array if no matches are found, so we handle it.
+        const fixtureList = Array.isArray(fixtures) ? fixtures : [];
+
+        // Filter for upcoming (not started) matches, which have an empty match_status
+        const upcomingFixtures = fixtureList.filter(fixture => fixture.match_status === '');
 
         res.json(upcomingFixtures);
     } catch (error) {
@@ -176,13 +173,13 @@ app.post('/api/analyze', async (req, res) => {
             
             Home Team Statistics:
             - League Position: ${homeTeamStats.overall_league_position}
-            - Overall Points: ${homeTeamStats.overall_league_points}
+            - Overall Points: ${homeTeamStats.overall_league_PTS}
             - Goals For: ${homeTeamStats.overall_league_GF}
             - Goals Against: ${homeTeamStats.overall_league_GA}
             
             Away Team Statistics:
             - League Position: ${awayTeamStats.overall_league_position}
-            - Overall Points: ${awayTeamStats.overall_league_points}
+            - Overall Points: ${awayTeamStats.overall_league_PTS}
             - Goals For: ${awayTeamStats.overall_league_GF}
             - Goals Against: ${awayTeamStats.overall_league_GA}
             
