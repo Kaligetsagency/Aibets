@@ -15,107 +15,135 @@ const port = 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
-const ODDS_API_KEY = process.env.ODDS_API_KEY;
+// --- NEW: APIfootball Configuration ---
+const APIFOOTBALL_KEY = process.env.APIFOOTBALL_KEY;
+const APIFOOTBALL_HOST = 'v3.football.api-sports.io';
+const APIFOOTBALL_URL = `https://v3.football.api-sports.io`;
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const ODDS_API_URL = 'https://api.the-odds-api.com/v4';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 
-// Endpoint to get the list of sports
-app.get('/api/sports', async (req, res) => {
+const apiFootballHeaders = {
+    'x-rapidapi-host': APIFOOTBALL_HOST,
+    'x-rapidapi-key': APIFOOTBALL_KEY,
+};
+
+// --- NEW: Endpoint to get the list of soccer leagues ---
+app.get('/api/leagues', async (req, res) => {
     try {
-        const response = await fetch(`${ODDS_API_URL}/sports/?apiKey=${ODDS_API_KEY}`);
+        const response = await fetch(`${APIFOOTBALL_URL}/leagues?current=true`, { headers: apiFootballHeaders });
         if (!response.ok) {
-            throw new Error(`The Odds API responded with status: ${response.status}`);
+            throw new Error(`APIfootball responded with status: ${response.status}`);
         }
-        const sports = await response.json();
-        res.json(sports);
+        const data = await response.json();
+        // Filter for top leagues for brevity, but you can adjust this
+        const topLeagues = data.response.filter(l => ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1", "UEFA Champions League"].includes(l.league.name));
+        res.json(topLeagues);
     } catch (error) {
-        console.error('Error fetching sports:', error);
+        console.error('Error fetching leagues:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint to get upcoming games for a specific sport
+
+// --- UPDATED: Endpoint to get upcoming games for a specific league ---
 app.get('/api/games', async (req, res) => {
-    const { sport } = req.query;
-    if (!sport) {
-        return res.status(400).json({ error: 'Sport parameter is required.' });
+    const { leagueId } = req.query;
+    if (!leagueId) {
+        return res.status(400).json({ error: 'League ID parameter is required.' });
     }
     try {
-        const response = await fetch(`${ODDS_API_URL}/sports/${sport}/odds/?regions=us&oddsFormat=american&markets=h2h,spreads,totals&apiKey=${ODDS_API_KEY}`);
+        const today = new Date().toISOString().slice(0, 10);
+        const response = await fetch(`${APIFOOTBALL_URL}/fixtures?league=${leagueId}&season=2024&from=${today}&to=2024-12-31`, { headers: apiFootballHeaders });
+        
         if (!response.ok) {
-            throw new Error(`The Odds API responded with status: ${response.status}`);
+            throw new Error(`APIfootball responded with status: ${response.status}`);
         }
-        const games = await response.json();
-        res.json(games);
+        const data = await response.json();
+        res.json(data.response);
     } catch (error) {
         console.error('Error fetching games:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint to analyze a specific game
+// --- UPDATED: Endpoint to analyze a specific game ---
 app.post('/api/analyze', async (req, res) => {
-    const { gameId, sportKey, homeTeam, awayTeam } = req.body;
+    const { fixtureId, leagueId, homeTeamId, awayTeamId } = req.body;
 
-    if (!gameId || !sportKey || !homeTeam || !awayTeam) {
-        return res.status(400).json({ error: 'Game ID, sport key, and team names are required.' });
+    if (!fixtureId || !leagueId || !homeTeamId || !awayTeamId) {
+        return res.status(400).json({ error: 'Fixture ID, league ID, and team IDs are required.' });
     }
 
     try {
-        // 1. Fetch the latest odds for the specific game
-        const oddsResponse = await fetch(`${ODDS_API_URL}/sports/${sportKey}/odds/?regions=us&oddsFormat=american&markets=h2h,spreads,totals&apiKey=${ODDS_API_KEY}`);
-        if (!oddsResponse.ok) throw new Error(`The Odds API request failed: ${oddsResponse.statusText}`);
-        
-        const allGames = await oddsResponse.json();
-        const game = allGames.find(g => g.id === gameId);
+        // --- STEP 1: Fetch Fixture Details & Odds ---
+        const fixtureResponse = await fetch(`${APIFOOTBALL_URL}/fixtures?id=${fixtureId}`, { headers: apiFootballHeaders });
+        if (!fixtureResponse.ok) throw new Error(`APIfootball fixtures request failed: ${fixtureResponse.statusText}`);
+        const fixtureData = await fixtureResponse.json();
+        const fixture = fixtureData.response[0];
+        if (!fixture) return res.status(404).json({ error: 'Fixture not found.' });
 
-        if (!game) {
-            return res.status(404).json({ error: 'Game not found in the latest odds data.' });
-        }
-        
-        // **NEW**: Fetch additional stats (this is a placeholder for a real stats API call)
-        const additionalData = {
-            homeTeamForm: "W, W, L, W, W",
-            awayTeamForm: "L, W, L, L, W",
-            headToHead: `${homeTeam} won 3 of the last 5 meetings.`,
-            teamNews: `Key player for ${awayTeam} is questionable with an injury.`
+        const oddsResponse = await fetch(`${APIFOOTBALL_URL}/odds?fixture=${fixtureId}&bookmaker=8`, { headers: apiFootballHeaders }); // 8 = Bet365, a common bookmaker
+        if (!oddsResponse.ok) throw new Error(`APIfootball odds request failed: ${oddsResponse.statusText}`);
+        const oddsData = await oddsResponse.json();
+        const bookmaker = oddsData.response[0]?.bookmakers[0];
+        const moneyline = bookmaker?.bets.find(b => b.name === 'Match Winner');
+        const totals = bookmaker?.bets.find(b => b.name === 'Over/Under');
+        const bothToScore = bookmaker?.bets.find(b => b.name === 'Both Teams Score');
+
+
+        // --- STEP 2: Fetch Team Statistics (this replaces the hardcoded data) ---
+        const fetchStats = async (teamId) => {
+            const statsResponse = await fetch(`${APIFOOTBALL_URL}/teams/statistics?league=${leagueId}&season=2024&team=${teamId}`, { headers: apiFootballHeaders });
+            if (!statsResponse.ok) return { form: "N/A", goals_for: "N/A", goals_against: "N/A" };
+            const statsData = await statsResponse.json();
+            return {
+                form: statsData.response?.form || "N/A",
+                goalsFor: statsData.response?.goals.for.total.total || "N/A",
+                goalsAgainst: statsData.response?.goals.against.total.total || "N/A",
+            };
         };
+        
+        const homeTeamStats = await fetchStats(homeTeamId);
+        const awayTeamStats = await fetchStats(awayTeamId);
 
-        // 2. Construct a more detailed prompt for Gemini AI
+        // --- STEP 3: Construct a more detailed prompt for Gemini AI ---
         const prompt = `
-            You are a professional sports betting analyst. Your goal is to provide a comprehensive and precise betting recommendation based on a wide range of data.
-            
+            You are a professional sports betting analyst specializing in Soccer. Your goal is to provide a comprehensive and precise betting recommendation based on a wide range of data.
+
             **Task**: Analyze the provided data and return a single, minified JSON object with the following keys: "suggestedBet", "confidenceLevel", "justification", "riskAssessment", and "alternativeBet".
             Do not include any other text, markdown formatting, or explanations outside of the JSON object.
 
             **Analysis Data:**
-            - **Match**: ${game.home_team} (Home) vs. ${game.away_team} (Away)
-            - **Sport**: ${game.sport_title}
-            
-            **Contextual Data:**
-            - **Home Team Form (Last 5)**: ${additionalData.homeTeamForm}
-            - **Away Team Form (Last 5)**: ${additionalData.awayTeamForm}
-            - **Head-to-Head History**: ${additionalData.headToHead}
-            - **Key Team News**: ${additionalData.teamNews}
+            - **Match**: ${fixture.teams.home.name} (Home) vs. ${fixture.teams.away.name} (Away)
+            - **Competition**: ${fixture.league.name}
+            - **Venue**: ${fixture.fixture.venue.name}
 
-            **Betting Odds (DraftKings):**
-            - **Moneyline**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'h2h')?.outcomes)}
-            - **Point Spread**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'spreads')?.outcomes)}
-            - **Totals (Over/Under)**: ${JSON.stringify(game.bookmakers.find(b => b.key === 'draftkings')?.markets.find(m => m.key === 'totals')?.outcomes)}
+            **Team Statistics (This Season):**
+            - **Home Team Form**: ${homeTeamStats.form}
+            - **Home Team Goals For**: ${homeTeamStats.goalsFor}
+            - **Home Team Goals Against**: ${homeTeamStats.goalsAgainst}
+            - **Away Team Form**: ${awayTeamStats.form}
+            - **Away Team Goals For**: ${awayTeamStats.goalsFor}
+            - **Away Team Goals Against**: ${awayTeamStats.goalsAgainst}
+
+            **Betting Odds (Bet365):**
+            - **Moneyline (1X2)**: ${JSON.stringify(moneyline?.values)}
+            - **Totals (Over/Under)**: ${JSON.stringify(totals?.values)}
+            - **Both Teams To Score**: ${JSON.stringify(bothToScore?.values)}
 
             **Instructions for Analysis:**
-            1.  **Synthesize All Data**: Weigh the betting odds against the contextual data (form, H2H, news). Don't rely only on the odds.
-            2.  **Identify Value**: Determine if the odds offer good value relative to the statistical probability of the outcome.
-            3.  **Justify your Decision**: In the 'justification', clearly explain WHY you chose the bet, referencing specific data points (e.g., "Given the home team's strong form and the away team's key injury...").
-            4.  **Assess Risk**: In 'riskAssessment', describe the primary risks associated with your suggested bet.
-            5.  **Provide an Alternative**: In 'alternativeBet', suggest a secondary, perhaps safer, bet based on the data.
+            1.  **Synthesize All Data**: Weigh the betting odds against the team statistics (form, goals for/against).
+            2.  **Identify Value**: Determine if the odds offer good value relative to the statistical probability of the outcome. Is a team underrated or overrated by the bookmaker?
+            3.  **Justify your Decision**: In 'justification', clearly explain WHY you chose the bet, referencing specific data points (e.g., "Given the home team's strong defensive record (only ${homeTeamStats.goalsAgainst} goals conceded) and the away team's poor form (${awayTeamStats.form}), the value lies with the home team moneyline...").
+            4.  **Assess Risk**: In 'riskAssessment', describe the primary risks associated with your suggested bet (e.g., "The main risk is the potential for an upset, as soccer can be unpredictable. The away team has scored in 4 of their last 5 games.").
+            5.  **Provide an Alternative**: In 'alternativeBet', suggest a secondary, perhaps safer or different type of, bet based on the data (e.g., "An alternative bet is Over 2.5 goals, given both teams' high scoring records.").
 
             Generate the JSON output now.
         `;
 
-        // 3. Call the Gemini API
+        // --- STEP 4: Call the Gemini API ---
         const geminiResponse = await fetch(GEMINI_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
