@@ -45,12 +45,24 @@ async function fetchFootballData(params) {
 }
 
 /**
- * Endpoint to get a list of leagues.
+ * Endpoint to get a list of leagues from standings, which is more reliable.
  */
 app.get('/api/leagues', async (req, res) => {
     try {
-        const leagues = await fetchFootballData({ action: 'get_leagues' });
-        res.json(leagues);
+        const standings = await fetchFootballData({ action: 'get_standings' });
+        // apifootball.com API returns all leagues by default, we need to extract them from the standings data.
+        const uniqueLeagues = new Map();
+        if (Array.isArray(standings)) {
+            standings.forEach(s => {
+                if (s.league_id && !uniqueLeagues.has(s.league_id)) {
+                    uniqueLeagues.set(s.league_id, {
+                        league_id: s.league_id,
+                        league_name: s.league_name
+                    });
+                }
+            });
+        }
+        res.json(Array.from(uniqueLeagues.values()));
     } catch (error) {
         console.error('Failed to fetch leagues:', error);
         res.status(500).json({ error: error.message });
@@ -76,7 +88,7 @@ app.get('/api/teams/:leagueId', async (req, res) => {
 });
 
 /**
- * Endpoint to get upcoming fixtures for a specific league (not team specific).
+ * Endpoint to get upcoming fixtures for a specific league.
  */
 app.get('/api/fixtures/:leagueId', async (req, res) => {
     const { leagueId } = req.params;
@@ -93,7 +105,7 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
         });
 
         // Filter for upcoming (not started) matches
-        const upcomingFixtures = fixtures.filter(fixture => fixture.match_status === '' || fixture.match_status === 'FT');
+        const upcomingFixtures = fixtures.filter(fixture => fixture.match_status === '');
 
         res.json(upcomingFixtures);
     } catch (error) {
@@ -104,7 +116,7 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
 
 /**
  * Endpoint for AI analysis.
- * Takes fixture ID as input.
+ * Takes fixture ID and league ID as input.
  * Fetches data, constructs a prompt, and sends to Gemini.
  */
 app.post('/api/analyze', async (req, res) => {
@@ -140,7 +152,7 @@ app.post('/api/analyze', async (req, res) => {
         const h2hResponse = await fetchFootballData({
             action: 'get_events',
             from: '2023-01-01', // Example date range
-            to: '2024-12-31',
+            to: new Date().toISOString().slice(0, 10), // Up to today
             league_id: leagueId,
         });
 
@@ -160,19 +172,17 @@ app.post('/api/analyze', async (req, res) => {
             - Date: ${fixture.match_date}
             
             Recent Head-to-Head (last 5 matches):
-            ${h2hData.map(match => `  - ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n')}
+            ${h2hData.length > 0 ? h2hData.map(match => `  - ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n') : '  - No recent head-to-head data available.'}
             
             Home Team Statistics:
             - League Position: ${homeTeamStats.overall_league_position}
             - Overall Points: ${homeTeamStats.overall_league_points}
-            - Form (L-W-W...): ${homeTeamStats.overall_league_payed} matches played
             - Goals For: ${homeTeamStats.overall_league_GF}
             - Goals Against: ${homeTeamStats.overall_league_GA}
             
             Away Team Statistics:
             - League Position: ${awayTeamStats.overall_league_position}
             - Overall Points: ${awayTeamStats.overall_league_points}
-            - Form (L-W-W...): ${awayTeamStats.overall_league_payed} matches played
             - Goals For: ${awayTeamStats.overall_league_GF}
             - Goals Against: ${awayTeamStats.overall_league_GA}
             
