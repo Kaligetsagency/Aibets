@@ -10,39 +10,45 @@
 <body>
     <div class="container">
         <header>
-            <h1>AI Sports Betting Analysis 🏈🏀⚽</h1>
-            <p>Select a sport and a game to get an AI-powered analysis.</p>
+            <h1>AI Soccer Betting Analysis ⚽</h1>
+            <p>Select a league and a game to get an AI-powered analysis.</p>
         </header>
 
         <main>
             <div class="controls">
                 <div class="select-group">
-                    <label for="sport-select">Sport:</label>
-                    <select id="sport-select">
-                        <option value="">Loading Sports...</option>
+                    <label for="league-select">League:</label>
+                    <select id="league-select">
+                        <option value="">Loading Leagues...</option>
                     </select>
                 </div>
                 <div class="select-group">
                     <label for="game-select">Upcoming Game:</label>
-                    <select id="game-select">
-                        <option value="">Select a Sport First</option>
+                    <select id="game-select" disabled>
+                        <option value="">Select a League First</option>
                     </select>
                 </div>
-                <button id="analyze-btn">Analyze Game</button>
+                <button id="analyze-btn" disabled>Analyze Game</button>
             </div>
 
             <div id="results-container" class="results-hidden">
                 <h2>Analysis Results</h2>
                 <div id="loader" class="loader-hidden"></div>
-                <div id="results-content">
+                <div id="results-content" style="display: none;">
                     <div class="result-item">
                         <strong>Suggested Bet:</strong> <span id="suggested-bet"></span>
                     </div>
                     <div class="result-item">
                         <strong>Confidence Level:</strong> <span id="confidence-level"></span>
                     </div>
-                    <div class="result-item">
+                     <div class="result-item">
                         <strong>Justification:</strong> <p id="justification"></p>
+                    </div>
+                    <div class="result-item">
+                        <strong>Risk Assessment:</strong> <p id="risk-assessment"></p>
+                    </div>
+                    <div class="result-item">
+                        <strong>Alternative Bet:</strong> <span id="alternative-bet"></span>
                     </div>
                 </div>
                  <div id="error-message" class="error-hidden"></div>
