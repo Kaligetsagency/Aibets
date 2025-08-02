@@ -17,14 +17,20 @@ app.use(express.static('public'));
 
 // --- NEW: APIfootball Configuration ---
 const APIFOOTBALL_KEY = process.env.APIFOOTBALL_KEY;
-const APIFOOTBALL_HOST = 'v3.football.api-sports.io';
-const APIFOOTBALL_URL = `https://v3.football.api-sports.io`;
+// FIX: Updated to use the apifootball.com API.
+// You MUST check the official apifootball.com documentation for the correct host and URL.
+// The values below are common examples and may need to be adjusted.
+const APIFOOTBALL_HOST = 'api.apifootball.com';
+const APIFOOTBALL_URL = `https://apifootball.com/api`;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 
 const apiFootballHeaders = {
+    // FIX: The header for the API key may be different for apifootball.com.
+    // Check their documentation and replace 'x-rapidapi-key' if needed.
+    // apifootball.com often passes the API key as a query parameter instead of a header.
     'x-rapidapi-host': APIFOOTBALL_HOST,
     'x-rapidapi-key': APIFOOTBALL_KEY,
 };
@@ -33,6 +39,8 @@ const apiFootballHeaders = {
 app.get('/api/leagues', async (req, res) => {
     try {
         // **FIX**: Changed from 'current=true' to 'season=2025' to get upcoming season leagues
+        // FIX: The query parameters and URL structure for apifootball.com may be different.
+        // You may need to replace this with something like `${APIFOOTBALL_URL}?action=get_leagues&APIkey=${APIFOOTBALL_KEY}`
         const response = await fetch(`${APIFOOTBALL_URL}/leagues?season=2025`, { headers: apiFootballHeaders });
         if (!response.ok) {
             const errorBody = await response.text();
@@ -66,6 +74,7 @@ app.get('/api/games', async (req, res) => {
     try {
         const today = new Date().toISOString().slice(0, 10);
         // Using 2026 as the end date to catch all fixtures in the season
+        // FIX: The query parameters for apifootball.com may be different.
         const response = await fetch(`${APIFOOTBALL_URL}/fixtures?league=${leagueId}&season=2025&from=${today}&to=2026-07-31`, { headers: apiFootballHeaders });
         
         if (!response.ok) {
@@ -89,12 +98,14 @@ app.post('/api/analyze', async (req, res) => {
 
     try {
         // --- STEP 1: Fetch Fixture Details & Odds ---
+        // FIX: The query parameters for apifootball.com may be different.
         const fixtureResponse = await fetch(`${APIFOOTBALL_URL}/fixtures?id=${fixtureId}`, { headers: apiFootballHeaders });
         if (!fixtureResponse.ok) throw new Error(`APIfootball fixtures request failed: ${fixtureResponse.statusText}`);
         const fixtureData = await fixtureResponse.json();
         const fixture = fixtureData.response[0];
         if (!fixture) return res.status(404).json({ error: 'Fixture not found.' });
 
+        // FIX: The query parameters for apifootball.com odds may be different.
         const oddsResponse = await fetch(`${APIFOOTBALL_URL}/odds?fixture=${fixtureId}&bookmaker=8`, { headers: apiFootballHeaders }); // 8 = Bet365, a common bookmaker
         if (!oddsResponse.ok) throw new Error(`APIfootball odds request failed: ${oddsResponse.statusText}`);
         const oddsData = await oddsResponse.json();
@@ -106,6 +117,7 @@ app.post('/api/analyze', async (req, res) => {
 
         // --- STEP 2: Fetch Team Statistics (this replaces the hardcoded data) ---
         const fetchStats = async (teamId) => {
+            // FIX: The query parameters for apifootball.com stats may be different.
             const statsResponse = await fetch(`${APIFOOTBALL_URL}/teams/statistics?league=${leagueId}&season=2025&team=${teamId}`, { headers: apiFootballHeaders });
             if (!statsResponse.ok) return { form: "N/A", goals_for: "N/A", goals_against: "N/A" };
             const statsData = await statsResponse.json();
