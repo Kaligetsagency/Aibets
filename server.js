@@ -21,7 +21,7 @@ const APIFOOTBALL_HOST = 'v3.football.api-sports.io';
 const APIFOOTBALL_URL = `https://v3.football.api-sports.io`;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 
 const apiFootballHeaders = {
@@ -29,14 +29,24 @@ const apiFootballHeaders = {
     'x-rapidapi-key': APIFOOTBALL_KEY,
 };
 
-// --- NEW: Endpoint to get the list of soccer leagues ---
+// --- UPDATED & FIXED: Endpoint to get the list of soccer leagues ---
 app.get('/api/leagues', async (req, res) => {
     try {
-        const response = await fetch(`${APIFOOTBALL_URL}/leagues?current=true`, { headers: apiFootballHeaders });
+        // **FIX**: Changed from 'current=true' to 'season=2025' to get upcoming season leagues
+        const response = await fetch(`${APIFOOTBALL_URL}/leagues?season=2025`, { headers: apiFootballHeaders });
         if (!response.ok) {
+            const errorBody = await response.text();
+            console.error('APIfootball Error:', errorBody);
             throw new Error(`APIfootball responded with status: ${response.status}`);
         }
         const data = await response.json();
+
+        // Check if the API reported any errors (e.g., bad API key)
+        if (data.errors && Object.keys(data.errors).length > 0) {
+            console.error('APIfootball API Errors:', data.errors);
+            throw new Error('Failed to fetch leagues due to an API error. Check your API Key.');
+        }
+
         // Filter for top leagues for brevity, but you can adjust this
         const topLeagues = data.response.filter(l => ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1", "UEFA Champions League"].includes(l.league.name));
         res.json(topLeagues);
@@ -55,7 +65,8 @@ app.get('/api/games', async (req, res) => {
     }
     try {
         const today = new Date().toISOString().slice(0, 10);
-        const response = await fetch(`${APIFOOTBALL_URL}/fixtures?league=${leagueId}&season=2024&from=${today}&to=2024-12-31`, { headers: apiFootballHeaders });
+        // Using 2026 as the end date to catch all fixtures in the season
+        const response = await fetch(`${APIFOOTBALL_URL}/fixtures?league=${leagueId}&season=2025&from=${today}&to=2026-07-31`, { headers: apiFootballHeaders });
         
         if (!response.ok) {
             throw new Error(`APIfootball responded with status: ${response.status}`);
@@ -95,7 +106,7 @@ app.post('/api/analyze', async (req, res) => {
 
         // --- STEP 2: Fetch Team Statistics (this replaces the hardcoded data) ---
         const fetchStats = async (teamId) => {
-            const statsResponse = await fetch(`${APIFOOTBALL_URL}/teams/statistics?league=${leagueId}&season=2024&team=${teamId}`, { headers: apiFootballHeaders });
+            const statsResponse = await fetch(`${APIFOOTBALL_URL}/teams/statistics?league=${leagueId}&season=2025&team=${teamId}`, { headers: apiFootballHeaders });
             if (!statsResponse.ok) return { form: "N/A", goals_for: "N/A", goals_against: "N/A" };
             const statsData = await statsResponse.json();
             return {
