@@ -3,55 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Sports Betting Analysis</title>
+    <title>AI Betting Analysis</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>AI Soccer Betting Analysis ⚽</h1>
-            <p>Select a league and a game to get an AI-powered analysis.</p>
+            <h1>AI Betting Analysis</h1>
+            <p>Select a league and a fixture to get AI-powered betting recommendations.</p>
         </header>
 
         <main>
             <div class="controls">
                 <div class="select-group">
                     <label for="league-select">League:</label>
-                    <select id="league-select">
-                        <option value="">Loading Leagues...</option>
-                    </select>
+                    <select id="league-select"></select>
                 </div>
+
                 <div class="select-group">
-                    <label for="game-select">Upcoming Game:</label>
-                    <select id="game-select" disabled>
-                        <option value="">Select a League First</option>
-                    </select>
+                    <label for="team-select">Team:</label>
+                    <select id="team-select" disabled></select>
                 </div>
-                <button id="analyze-btn" disabled>Analyze Game</button>
+
+                <div class="select-group">
+                    <label for="fixture-select">Fixture:</label>
+                    <select id="fixture-select" disabled></select>
+                </div>
+
+                <button id="analyze-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-area-chart"><path d="M3 3v18h18"/><path d="M7 12v5h5"/><path d="M12 12v2h2"/><path d="M22 7l-5 5-4-4-3 3-5-5"/></svg>
+                    Analyze Match
+                </button>
             </div>
 
-            <div id="results-container" class="results-hidden">
-                <h2>Analysis Results</h2>
+            <div id="results-container">
                 <div id="loader" class="loader-hidden"></div>
+                
                 <div id="results-content" style="display: none;">
-                    <div class="result-item">
-                        <strong>Suggested Bet:</strong> <span id="suggested-bet"></span>
-                    </div>
-                    <div class="result-item">
-                        <strong>Confidence Level:</strong> <span id="confidence-level"></span>
-                    </div>
-                     <div class="result-item">
-                        <strong>Justification:</strong> <p id="justification"></p>
-                    </div>
-                    <div class="result-item">
-                        <strong>Risk Assessment:</strong> <p id="risk-assessment"></p>
-                    </div>
-                    <div class="result-item">
-                        <strong>Alternative Bet:</strong> <span id="alternative-bet"></span>
+                    <div class="result-card">
+                        <div class="result-item">
+                            <h3>Predicted Outcome</h3>
+                            <p id="predicted-outcome"></p>
+                        </div>
+                        <div class="result-item">
+                            <h3>Recommended Bet</h3>
+                            <p id="recommended-bet"></p>
+                        </div>
+                        <div class="result-item">
+                            <h3>Confidence Score</h3>
+                            <p id="confidence-score"></p>
+                        </div>
                     </div>
                 </div>
-                 <div id="error-message" class="error-hidden"></div>
+
+                <div id="error-message" class="error-hidden"></div>
             </div>
         </main>
     </div>
