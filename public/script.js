@@ -1,119 +1,178 @@
 // public/script.js
+// Client-side logic for the betting analysis UI.
+
 document.addEventListener('DOMContentLoaded', () => {
     const leagueSelect = document.getElementById('league-select');
-    const gameSelect = document.getElementById('game-select');
+    const teamSelect = document.getElementById('team-select');
+    const fixtureSelect = document.getElementById('fixture-select');
     const analyzeBtn = document.getElementById('analyze-btn');
     const resultsContainer = document.getElementById('results-container');
     const loader = document.getElementById('loader');
     const resultsContent = document.getElementById('results-content');
     const errorMessage = document.getElementById('error-message');
 
-    // Result elements
-    const suggestedBetEl = document.getElementById('suggested-bet');
-    const confidenceLevelEl = document.getElementById('confidence-level');
-    const justificationEl = document.getElementById('justification');
-    const riskAssessmentEl = document.getElementById('risk-assessment'); // New
-    const alternativeBetEl = document.getElementById('alternative-bet'); // New
+    const predictedOutcomeEl = document.getElementById('predicted-outcome');
+    const recommendedBetEl = document.getElementById('recommended-bet');
+    const confidenceScoreEl = document.getElementById('confidence-score');
 
+    const FOOTBALL_API_SEASON = 2023; // Hardcoded season for this example
 
     /**
-     * Shows an alert message to the user.
+     * Shows a custom message box instead of a standard browser alert.
+     * @param {string} message The message to display.
      */
-    function showAlert(message) {
-        alert(message);
+    function showMessageBox(message) {
+        const existingBox = document.querySelector('.message-box');
+        if (existingBox) {
+            existingBox.remove();
+        }
+
+        const messageBox = document.createElement('div');
+        messageBox.className = `message-box error`;
+        messageBox.innerHTML = `
+            <p>${message}</p>
+            <button class="message-box-close">OK</button>
+        `;
+        document.body.appendChild(messageBox);
+
+        document.querySelector('.message-box-close').addEventListener('click', () => {
+            messageBox.remove();
+        });
     }
 
     /**
-     * Fetches the list of active leagues and populates the league dropdown.
+     * Fetches leagues and populates the dropdown.
      */
-    async function loadLeagues() {
+    async function fetchLeagues() {
         try {
             const response = await fetch('/api/leagues');
-            if (!response.ok) throw new Error('Failed to load leagues.');
-
             const leagues = await response.json();
-            leagueSelect.innerHTML = '<option value="" disabled selected>Select a League</option>';
-            leagues.forEach(leagueData => {
+
+            if (!response.ok) {
+                throw new Error(leagues.error);
+            }
+
+            leagueSelect.innerHTML = '<option value="">Select a League</option>';
+            leagues.forEach(league => {
                 const option = document.createElement('option');
-                option.value = leagueData.league.id;
-                option.textContent = leagueData.league.name;
+                option.value = league.league.id;
+                option.textContent = league.league.name;
                 leagueSelect.appendChild(option);
             });
         } catch (error) {
-            console.error(error);
-            leagueSelect.innerHTML = '<option value="">Error loading leagues</option>';
+            console.error('Failed to fetch leagues:', error);
+            showMessageBox(`Failed to load leagues: ${error.message}`);
         }
     }
 
     /**
-     * Fetches upcoming games for the selected league.
+     * Fetches teams for a given league and populates the dropdown.
+     * @param {string} leagueId - The ID of the league.
      */
-    async function loadGames(leagueId) {
-        gameSelect.innerHTML = '<option value="">Loading Games...</option>';
-        gameSelect.disabled = true;
-        analyzeBtn.disabled = true;
+    async function fetchTeams(leagueId) {
+        teamSelect.innerHTML = '<option value="">Select a Team</option>';
+        teamSelect.disabled = true;
+        fixtureSelect.innerHTML = '<option value="">Select a Fixture</option>';
+        fixtureSelect.disabled = true;
+
+        if (!leagueId) return;
 
         try {
-            const response = await fetch(`/api/games?leagueId=${leagueId}`);
-             if (!response.ok) throw new Error('Failed to load games.');
-            
-            const games = await response.json();
-            if (games.length === 0) {
-                 gameSelect.innerHTML = '<option value="">No upcoming games found</option>';
-                 return;
+            const response = await fetch(`/api/teams/${leagueId}/${FOOTBALL_API_SEASON}`);
+            const teams = await response.json();
+
+            if (!response.ok) {
+                throw new Error(teams.error);
             }
 
-            gameSelect.innerHTML = '<option value="" disabled selected>Select a Game</option>';
-            games.forEach(game => {
+            teamSelect.disabled = false;
+            teams.forEach(team => {
                 const option = document.createElement('option');
-                option.value = game.fixture.id;
-                option.textContent = `${game.teams.home.name} vs. ${game.teams.away.name}`;
-                // Store all necessary data on the option element
-                option.dataset.leagueId = game.league.id;
-                option.dataset.homeTeamId = game.teams.home.id;
-                option.dataset.awayTeamId = game.teams.away.id;
-                gameSelect.appendChild(option);
+                option.value = team.team.id;
+                option.textContent = team.team.name;
+                teamSelect.appendChild(option);
             });
-            gameSelect.disabled = false;
         } catch (error) {
-            console.error(error);
-            gameSelect.innerHTML = '<option value="">Error loading games</option>';
+            console.error('Failed to fetch teams:', error);
+            showMessageBox(`Failed to load teams: ${error.message}`);
         }
     }
 
-    // Event Listeners
-    leagueSelect.addEventListener('change', () => {
-        const selectedLeague = leagueSelect.value;
-        if (selectedLeague) {
-            loadGames(selectedLeague);
+    /**
+     * Fetches fixtures for a given team and populates the dropdown.
+     * @param {string} teamId - The ID of the team.
+     */
+    async function fetchFixtures(teamId) {
+        fixtureSelect.innerHTML = '<option value="">Select a Fixture</option>';
+        fixtureSelect.disabled = true;
+        const leagueId = leagueSelect.value;
+        if (!teamId || !leagueId) return;
+
+        try {
+            const response = await fetch(`/api/fixtures/${teamId}/${leagueId}/${FOOTBALL_API_SEASON}`);
+            const fixtures = await response.json();
+
+            if (!response.ok) {
+                throw new Error(fixtures.error);
+            }
+
+            fixtureSelect.disabled = false;
+            fixtures.forEach(fixture => {
+                const option = document.createElement('option');
+                option.value = fixture.fixture.id;
+                option.textContent = `${fixture.teams.home.name} vs ${fixture.teams.away.name}`;
+                option.dataset.homeTeamId = fixture.teams.home.id;
+                option.dataset.awayTeamId = fixture.teams.away.id;
+                fixtureSelect.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to fetch fixtures:', error);
+            showMessageBox(`Failed to load fixtures: ${error.message}`);
         }
+    }
+
+    // Event listeners
+    leagueSelect.addEventListener('change', (e) => {
+        const leagueId = e.target.value;
+        fetchTeams(leagueId);
     });
-    
-    gameSelect.addEventListener('change', () => {
-        analyzeBtn.disabled = !gameSelect.value;
+
+    teamSelect.addEventListener('change', (e) => {
+        const teamId = e.target.value;
+        fetchFixtures(teamId);
     });
 
     analyzeBtn.addEventListener('click', async () => {
-        const selectedGameOption = gameSelect.options[gameSelect.selectedIndex];
-        if (!selectedGameOption || !selectedGameOption.value) {
-            showAlert('Please select a game to analyze.');
+        const fixtureOption = fixtureSelect.options[fixtureSelect.selectedIndex];
+        const fixtureId = fixtureOption ? fixtureOption.value : null;
+        const homeTeamId = fixtureOption ? fixtureOption.dataset.homeTeamId : null;
+        const awayTeamId = fixtureOption ? fixtureOption.dataset.awayTeamId : null;
+        const leagueId = leagueSelect.value;
+
+        if (!fixtureId || !homeTeamId || !awayTeamId) {
+            showMessageBox('Please select a league, team, and fixture first.');
             return;
         }
 
-        const { value: fixtureId, dataset } = selectedGameOption;
-        const { leagueId, homeTeamId, awayTeamId } = dataset;
-        
-        // Show loader and hide previous results
-        resultsContainer.classList.remove('results-hidden');
+        // Hide results and show loader
         resultsContent.style.display = 'none';
         loader.classList.remove('loader-hidden');
         errorMessage.classList.add('error-hidden');
+        errorMessage.textContent = '';
 
         try {
             const response = await fetch('/api/analyze', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fixtureId, leagueId, homeTeamId, awayTeamId })
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    fixtureId,
+                    homeTeamId,
+                    awayTeamId,
+                    leagueId,
+                    season: FOOTBALL_API_SEASON
+                })
             });
 
             const result = await response.json();
@@ -123,17 +182,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Display results
-            suggestedBetEl.textContent = result.suggestedBet || 'N/A';
-            confidenceLevelEl.textContent = result.confidenceLevel || 'N/A';
-            justificationEl.textContent = result.justification || 'N/A';
-            riskAssessmentEl.textContent = result.riskAssessment || 'N/A'; // New
-            alternativeBetEl.textContent = result.alternativeBet || 'N/A'; // New
-            
+            predictedOutcomeEl.textContent = result.predictedOutcome || 'N/A';
+            recommendedBetEl.textContent = result.recommendedBet || 'N/A';
+            confidenceScoreEl.textContent = result.confidenceScore !== undefined ? `${result.confidenceScore}%` : 'N/A';
+
+            // Hide loader and show content
             loader.classList.add('loader-hidden');
             resultsContent.style.display = 'block';
 
         } catch (error) {
             console.error('Analysis request failed:', error);
+            // Display error message
             errorMessage.textContent = `Analysis failed: ${error.message}`;
             errorMessage.classList.remove('error-hidden');
             loader.classList.add('loader-hidden');
@@ -141,5 +200,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial load
-    loadLeagues();
+    fetchLeagues();
 });
