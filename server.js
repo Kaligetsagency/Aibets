@@ -197,7 +197,7 @@ app.post('/api/analyze', async (req, res) => {
         };
 
         const geminiApiKey = GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5:generateContent?key=${geminiApiKey}`;
 
         const aiResponse = await fetch(apiUrl, {
             method: 'POST',
