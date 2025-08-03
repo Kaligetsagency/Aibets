@@ -2,6 +2,8 @@
 // Client-side logic for the betting analysis UI.
 
 document.addEventListener('DOMContentLoaded', () => {
+    const countrySelect = document.getElementById('country-select');
+    const leagueSelect = document.getElementById('league-select');
     const fixtureSearchInput = document.getElementById('fixture-search');
     const fixtureSelect = document.getElementById('fixture-select');
     const analyzeBtn = document.getElementById('analyze-btn');
@@ -40,23 +42,103 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Fetches all upcoming fixtures from the server.
+     * Fetches all countries and populates the dropdown.
      */
-    async function fetchAllFixtures() {
-        fixtureSelect.innerHTML = '<option value="">Loading fixtures...</option>';
+    async function fetchCountries() {
+        countrySelect.innerHTML = '<option value="">Loading countries...</option>';
+        try {
+            const response = await fetch('/api/countries');
+            const countries = await response.json();
+
+            if (!response.ok) {
+                throw new Error(countries.error);
+            }
+
+            countrySelect.innerHTML = '<option value="">Select a Country</option>';
+            if (Array.isArray(countries)) {
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country.id;
+                    option.textContent = country.name;
+                    countrySelect.appendChild(option);
+                });
+            }
+            leagueSelect.disabled = true;
+            fixtureSearchInput.disabled = true;
+            fixtureSelect.disabled = true;
+        } catch (error) {
+            console.error('Failed to fetch countries:', error);
+            showMessageBox(`Failed to load countries: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches leagues for a given country and populates the dropdown.
+     */
+    async function fetchLeagues(countryId) {
+        leagueSelect.innerHTML = '<option value="">Loading leagues...</option>';
+        leagueSelect.disabled = true;
+        fixtureSearchInput.disabled = true;
         fixtureSelect.disabled = true;
+        
+        if (!countryId) {
+            leagueSelect.innerHTML = '<option value="">Select a Country first</option>';
+            return;
+        }
 
         try {
-            const response = await fetch('/api/all-fixtures');
-            const fixtures = await response.json();
+            const response = await fetch(`/api/leagues/${countryId}`);
+            const leagues = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(leagues.error);
+            }
 
+            leagueSelect.disabled = false;
+            leagueSelect.innerHTML = '<option value="">Select a League</option>';
+            if (Array.isArray(leagues)) {
+                leagues.forEach(league => {
+                    const option = document.createElement('option');
+                    option.value = league.id;
+                    option.textContent = league.name;
+                    leagueSelect.appendChild(option);
+                });
+            }
+            fixtureSearchInput.disabled = true;
+            fixtureSelect.disabled = true;
+        } catch (error) {
+            console.error('Failed to fetch leagues:', error);
+            showMessageBox(`Failed to load leagues: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches fixtures for a given league, populates the dropdown, and enables search.
+     */
+    async function fetchFixtures(leagueId) {
+        fixtureSelect.innerHTML = '<option value="">Loading fixtures...</option>';
+        fixtureSelect.disabled = true;
+        fixtureSearchInput.disabled = true;
+        
+        if (!leagueId) {
+            fixtureSelect.innerHTML = '<option value="">Select a League first</option>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/fixtures/${leagueId}`);
+            const fixtures = await response.json();
+            
             if (!response.ok) {
                 throw new Error(fixtures.error);
             }
 
             allFixtures = fixtures;
             updateFixtureList(''); // Show all fixtures initially
+            
             fixtureSelect.disabled = false;
+            fixtureSearchInput.disabled = false;
+
         } catch (error) {
             console.error('Failed to fetch fixtures:', error);
             showMessageBox(`Failed to load fixtures: ${error.message}`);
@@ -92,6 +174,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Event listeners
+    countrySelect.addEventListener('change', (e) => {
+        const countryId = e.target.value;
+        fetchLeagues(countryId);
+    });
+
+    leagueSelect.addEventListener('change', (e) => {
+        const leagueId = e.target.value;
+        fetchFixtures(leagueId);
+    });
+
     fixtureSearchInput.addEventListener('input', (e) => {
         updateFixtureList(e.target.value);
     });
@@ -102,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const leagueId = fixtureOption ? fixtureOption.dataset.leagueId : null;
 
         if (!fixtureId || !leagueId) {
-            showMessageBox('Please select a fixture from the list.');
+            showMessageBox('Please select a country, league, and fixture from the lists.');
             return;
         }
 
@@ -149,5 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial load
-    fetchAllFixtures();
+    fetchCountries();
 });
+                
