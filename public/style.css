@@ -2,14 +2,14 @@
 /* Basic styling for the betting analysis application. */
 
 body {
-    font-family: 'Inter', sans-serif;
-    background-color: #e2e8f0;
-    color: #1a202c;
+    font-family: 'Roboto', sans-serif;
+    background-color: #f0f2f5;
+    color: #333;
     margin: 0;
     padding: 20px;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     min-height: 100vh;
 }
 
@@ -20,26 +20,25 @@ body {
     padding: 30px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border: 1px solid #e2e8f0;
 }
 
 header {
     text-align: center;
     margin-bottom: 30px;
-    border-bottom: 2px solid #e2e8f0;
+    border-bottom: 1px solid #e0e0e0;
     padding-bottom: 20px;
 }
 
 header h1 {
     margin: 0;
-    font-size: 2.25rem;
+    font-size: 2rem;
     font-weight: 700;
-    color: #4a5568;
+    color: #1a237e;
 }
 
 header p {
     margin-top: 8px;
-    color: #718096;
+    color: #555;
     font-size: 1rem;
 }
 
@@ -53,85 +52,82 @@ header p {
 .select-group {
     display: flex;
     flex-direction: column;
+    gap: 8px;
 }
 
-.select-group label {
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #2d3748;
+label {
+    font-weight: 500;
+    color: #444;
 }
 
-.select-group select {
+input[type="text"],
+select {
     width: 100%;
     padding: 12px;
-    border: 1px solid #cbd5e0;
+    border: 1px solid #ccc;
     border-radius: 8px;
-    background-color: #f7fafc;
     font-size: 1rem;
-    color: #2d3748;
-    transition: all 0.2s;
+    background-color: #fafafa;
+    transition: border-color 0.3s;
 }
 
-.select-group select:focus {
+input[type="text"]:focus,
+select:focus {
     outline: none;
-    border-color: #4c51bf;
-    box-shadow: 0 0 0 3px rgba(76, 81, 191, 0.2);
+    border-color: #1a237e;
 }
 
-#analyze-btn {
-    width: 100%;
-    padding: 15px;
-    background-color: #4c51bf;
+.btn-primary {
+    padding: 12px 24px;
+    background-color: #1a237e;
     color: #ffffff;
     border: none;
     border-radius: 8px;
-    font-size: 1.125rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    transition: background-color 0.3s, transform 0.1s;
 }
 
-#analyze-btn:hover {
-    background-color: #5a62c9;
+.btn-primary:hover {
+    background-color: #283593;
 }
 
-#analyze-btn:disabled {
-    background-color: #a0aec0;
-    cursor: not-allowed;
+.btn-primary:active {
+    transform: translateY(1px);
 }
 
-.result-card {
-    background-color: #f7fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+#results-container {
     padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 20px;
+}
+
+#results-content h2 {
+    font-size: 1.5rem;
+    color: #1a237e;
+    margin-bottom: 20px;
 }
 
 .result-item {
+    background-color: #e8eaf6;
     padding: 15px;
-    background-color: #edf2f7;
     border-radius: 8px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.result-item h3 {
-    margin: 0 0 8px 0;
-    font-size: 1rem;
+.result-item label {
+    font-weight: 400;
+    color: #333;
+    margin-right: 10px;
+}
+
+.result-item span {
+    color: #00695c;
     font-weight: 500;
-    color: #4c51bf;
-}
-
-.result-item p {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #2d3748;
 }
 
 /* Loader styles */
@@ -141,7 +137,7 @@ header p {
 
 #loader {
     border: 4px solid #f3f3f3;
-    border-top: 4px solid #4c51bf;
+    border-top: 4px solid #1a237e;
     border-radius: 50%;
     width: 40px;
     height: 40px;
@@ -161,12 +157,11 @@ header p {
 
 #error-message {
     text-align: center;
-    color: #e53e3e;
-    background-color: #fff5f5;
+    color: #d32f2f;
+    background-color: #ffebee;
     padding: 15px;
     border-radius: 8px;
     margin-top: 20px;
-    font-weight: 500;
 }
 
 /* Custom Message Box Styles */
@@ -181,34 +176,24 @@ header p {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     z-index: 1000;
     text-align: center;
-    border: 1px solid #e53e3e;
-    max-width: 90%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    max-width: 350px;
+    width: 90%;
 }
 
 .message-box.error {
-    border-color: #e53e3e;
+    border: 2px solid #d32f2f;
 }
 
 .message-box p {
     margin: 0 0 15px 0;
-    font-size: 1rem;
-    color: #2d3748;
+    font-size: 1.1rem;
 }
 
 .message-box-close {
-    padding: 10px 20px;
-    background-color: #4c51bf;
+    background-color: #1a237e;
     color: #fff;
     border: none;
+    padding: 10px 20px;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.2s;
 }
-
-.message-box-close:hover {
-    background-color: #5a62c9;
-    }
