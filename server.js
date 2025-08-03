@@ -22,16 +22,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // Base URL for the apifootball.com API (v3 as per documentation)
 const FOOTBALL_API_URL = 'https://apiv3.apifootball.com/';
 
-// A list of popular league IDs to fetch fixtures from for the search functionality.
-// This is a static list to avoid multiple API calls for every search query.
-const POPULAR_LEAGUE_IDS = [
-    152, // English Premier League
-    175, // Spanish La Liga
-    207, // German Bundesliga
-    178, // Italian Serie A
-    168, // French Ligue 1
-];
-
 // Helper function to make requests to the apifootball.com API
 async function fetchFootballData(params) {
     const queryParams = new URLSearchParams({
@@ -40,6 +30,7 @@ async function fetchFootballData(params) {
     });
 
     const requestUrl = `${FOOTBALL_API_URL}?${queryParams.toString()}`;
+    console.log('Fetching from:', requestUrl); // <-- Debug log to check the full URL
 
     const response = await fetch(requestUrl);
 
@@ -63,27 +54,53 @@ async function fetchFootballData(params) {
 }
 
 /**
- * Endpoint to get all upcoming fixtures from a predefined list of leagues.
- * This is used to populate the client-side search functionality.
+ * Endpoint to get a list of all countries with football leagues.
  */
-app.get('/api/all-fixtures', async (req, res) => {
+app.get('/api/countries', async (req, res) => {
     try {
-        const fromDate = new Date().toISOString().slice(0, 10);
-        const toDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // Fetch for next 14 days
+        const countries = await fetchFootballData({ action: 'get_countries' });
+        res.json(countries.map(c => ({ id: c.country_id, name: c.country_name })));
+    } catch (error) {
+        console.error('Failed to fetch countries:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
-        const fixturePromises = POPULAR_LEAGUE_IDS.map(leagueId =>
-            fetchFootballData({
-                action: 'get_events',
-                league_id: leagueId,
-                from: fromDate,
-                to: toDate,
-            })
-        );
+/**
+ * Endpoint to get a list of leagues for a specific country.
+ */
+app.get('/api/leagues/:countryId', async (req, res) => {
+    const { countryId } = req.params;
+    try {
+        const leagues = await fetchFootballData({ action: 'get_leagues', country_id: countryId });
+        res.json(leagues.map(l => ({ id: l.league_id, name: l.league_name })));
+    } catch (error) {
+        console.error('Failed to fetch leagues:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
-        const allFixturesArray = await Promise.all(fixturePromises);
-        const allFixtures = allFixturesArray.flat();
+/**
+ * Endpoint to get upcoming fixtures for a specific league.
+ */
+app.get('/api/fixtures/:leagueId', async (req, res) => {
+    const { leagueId } = req.params;
+    const fromDate = new Date().toISOString().slice(0, 10);
+    const toDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-        const upcomingFixtures = allFixtures
+    try {
+        const fixtures = await fetchFootballData({
+            action: 'get_events',
+            league_id: leagueId,
+            from: fromDate,
+            to: toDate,
+        });
+
+        // The API might return an error message in an array if no matches are found, so we handle it.
+        const fixtureList = Array.isArray(fixtures) ? fixtures : [];
+
+        // Filter for upcoming (not started) matches, which have an empty match_status
+        const upcomingFixtures = fixtureList
             .filter(fixture => fixture.match_status === '')
             .map(fixture => ({
                 id: fixture.match_id,
@@ -96,7 +113,7 @@ app.get('/api/all-fixtures', async (req, res) => {
 
         res.json(upcomingFixtures);
     } catch (error) {
-        console.error('Failed to fetch all fixtures:', error);
+        console.error('Failed to fetch fixtures:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -127,10 +144,10 @@ app.post('/api/analyze', async (req, res) => {
 
         // Fetch standings to get home/away team stats
         const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
-
+        
         const homeTeamStats = standings.find(s => s.team_id === fixture.match_hometeam_id);
         const awayTeamStats = standings.find(s => s.team_id === fixture.match_awayteam_id);
-
+        
         if (!homeTeamStats || !awayTeamStats) {
             return res.status(404).json({ error: 'Could not retrieve team standings for analysis.' });
         }
@@ -197,7 +214,7 @@ app.post('/api/analyze', async (req, res) => {
         };
 
         const geminiApiKey = GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5:generateContent?key=${geminiApiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
         const aiResponse = await fetch(apiUrl, {
             method: 'POST',
