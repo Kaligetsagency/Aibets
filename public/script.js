@@ -2,8 +2,7 @@
 // Client-side logic for the betting analysis UI.
 
 document.addEventListener('DOMContentLoaded', () => {
-    const leagueSelect = document.getElementById('league-select');
-    const teamSelect = document.getElementById('team-select');
+    const fixtureSearchInput = document.getElementById('fixture-search');
     const fixtureSelect = document.getElementById('fixture-select');
     const analyzeBtn = document.getElementById('analyze-btn');
     const resultsContainer = document.getElementById('results-container');
@@ -14,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const predictedOutcomeEl = document.getElementById('predicted-outcome');
     const recommendedBetEl = document.getElementById('recommended-bet');
     const confidenceScoreEl = document.getElementById('confidence-score');
+
+    let allFixtures = [];
 
     /**
      * Shows a custom message box instead of a standard browser alert.
@@ -39,133 +40,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Fetches leagues and populates the dropdown.
+     * Fetches all upcoming fixtures from the server.
      */
-    async function fetchLeagues() {
-        try {
-            const response = await fetch('/api/leagues');
-            const leagues = await response.json();
-
-            if (!response.ok) {
-                throw new Error(leagues.error);
-            }
-
-            leagueSelect.innerHTML = '<option value="">Select a League</option>';
-            // apifootball.com returns all leagues as an array of standings.
-            // We need to extract the unique leagues from this data.
-            const uniqueLeagues = new Map();
-            if (Array.isArray(leagues)) {
-                leagues.forEach(league => {
-                    if (league.league_id && !uniqueLeagues.has(league.league_id)) {
-                        uniqueLeagues.set(league.league_id, {
-                            id: league.league_id,
-                            name: league.league_name
-                        });
-                    }
-                });
-            }
-
-            uniqueLeagues.forEach(league => {
-                const option = document.createElement('option');
-                option.value = league.id;
-                option.textContent = league.name;
-                leagueSelect.appendChild(option);
-            });
-        } catch (error) {
-            console.error('Failed to fetch leagues:', error);
-            showMessageBox(`Failed to load leagues: ${error.message}`);
-        }
-    }
-
-    /**
-     * Fetches teams for a given league and populates the dropdown.
-     * @param {string} leagueId - The ID of the league.
-     */
-    async function fetchTeams(leagueId) {
-        teamSelect.innerHTML = '<option value="">Select a Team</option>';
-        teamSelect.disabled = true;
-        fixtureSelect.innerHTML = '<option value="">Select a Fixture</option>';
+    async function fetchAllFixtures() {
+        fixtureSelect.innerHTML = '<option value="">Loading fixtures...</option>';
         fixtureSelect.disabled = true;
 
-        if (!leagueId) return;
-
         try {
-            const response = await fetch(`/api/teams/${leagueId}`);
-            const teams = await response.json();
-
-            if (!response.ok) {
-                throw new Error(teams.error);
-            }
-
-            teamSelect.disabled = false;
-            // The API returns teams from standings, which might have duplicates. Use a Set to store unique teams.
-            const uniqueTeams = new Map();
-            teams.forEach(team => {
-                if (!uniqueTeams.has(team.id)) {
-                    uniqueTeams.set(team.id, team);
-                }
-            });
-            uniqueTeams.forEach(team => {
-                const option = document.createElement('option');
-                option.value = team.id;
-                option.textContent = team.name;
-                teamSelect.appendChild(option);
-            });
-        } catch (error) {
-            console.error('Failed to fetch teams:', error);
-            showMessageBox(`Failed to load teams: ${error.message}`);
-        }
-    }
-
-    /**
-     * Fetches fixtures for a given league and populates the dropdown.
-     */
-    async function fetchFixtures(leagueId) {
-        fixtureSelect.innerHTML = '<option value="">Select a Fixture</option>';
-        fixtureSelect.disabled = true;
-        
-        if (!leagueId) return;
-
-        try {
-            const response = await fetch(`/api/fixtures/${leagueId}`);
+            const response = await fetch('/api/all-fixtures');
             const fixtures = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(fixtures.error);
             }
-            
-            fixtureSelect.disabled = false;
-            
-            const upcomingFixtures = fixtures.filter(f => f.match_status === '');
 
-            upcomingFixtures.forEach(fixture => {
-                const option = document.createElement('option');
-                option.value = fixture.match_id;
-                option.textContent = `${fixture.match_hometeam_name} vs ${fixture.match_awayteam_name}`;
-                option.dataset.homeTeamId = fixture.match_hometeam_id;
-                option.dataset.awayTeamId = fixture.match_awayteam_id;
-                fixtureSelect.appendChild(option);
-            });
+            allFixtures = fixtures;
+            updateFixtureList(''); // Show all fixtures initially
+            fixtureSelect.disabled = false;
         } catch (error) {
             console.error('Failed to fetch fixtures:', error);
             showMessageBox(`Failed to load fixtures: ${error.message}`);
         }
     }
 
+    /**
+     * Filters and updates the fixture dropdown based on a search term.
+     * @param {string} searchTerm The user's input.
+     */
+    function updateFixtureList(searchTerm) {
+        fixtureSelect.innerHTML = '';
+        const lowerCaseSearch = searchTerm.toLowerCase();
+
+        const filteredFixtures = allFixtures.filter(fixture =>
+            fixture.homeTeamName.toLowerCase().includes(lowerCaseSearch) ||
+            fixture.awayTeamName.toLowerCase().includes(lowerCaseSearch)
+        );
+
+        if (filteredFixtures.length === 0) {
+            fixtureSelect.innerHTML = '<option value="">No fixtures found</option>';
+            fixtureSelect.disabled = true;
+        } else {
+            fixtureSelect.disabled = false;
+            filteredFixtures.forEach(fixture => {
+                const option = document.createElement('option');
+                option.value = fixture.id;
+                option.textContent = `${fixture.homeTeamName} vs ${fixture.awayTeamName}`;
+                option.dataset.leagueId = fixture.leagueId;
+                fixtureSelect.appendChild(option);
+            });
+        }
+    }
+
     // Event listeners
-    leagueSelect.addEventListener('change', (e) => {
-        const leagueId = e.target.value;
-        fetchTeams(leagueId);
-        fetchFixtures(leagueId);
+    fixtureSearchInput.addEventListener('input', (e) => {
+        updateFixtureList(e.target.value);
     });
 
     analyzeBtn.addEventListener('click', async () => {
         const fixtureOption = fixtureSelect.options[fixtureSelect.selectedIndex];
         const fixtureId = fixtureOption ? fixtureOption.value : null;
-        const leagueId = leagueSelect.value;
+        const leagueId = fixtureOption ? fixtureOption.dataset.leagueId : null;
 
         if (!fixtureId || !leagueId) {
-            showMessageBox('Please select a league and a fixture first.');
+            showMessageBox('Please select a fixture from the list.');
             return;
         }
 
@@ -212,5 +149,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial load
-    fetchLeagues();
+    fetchAllFixtures();
 });
