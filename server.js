@@ -36,25 +36,28 @@ async function fetchFootballData(params) {
         const response = await fetch(requestUrl);
 
         if (!response.ok) {
-            throw new Error(`Football API error! Status: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Football API error! Status: ${response.status}, Message: ${errorText}`);
         }
 
         const data = await response.json();
 
+        // The API can return an error object, check for that
         if (data.error) {
-            console.error('Football API returned an error:', data.error);
-            throw new Error(`Football API Error: ${data.error}`);
+            console.error('Football API returned an error:', data.error, data.message);
+            throw new Error(`Football API Error: ${data.message || data.error}`);
         }
-
-        // Handle cases where API returns a string message instead of an array
-        if (data.length === 1 && typeof data[0] === 'string') {
+        
+        // Handle cases where API returns a string message instead of an array for "not found" etc.
+        if (Array.isArray(data) && data.length === 1 && typeof data[0] === 'string') {
             return [];
         }
+
 
         return data;
     } catch (error) {
         console.error('An error occurred during API fetch:', error);
-        return []; // Return an empty array on error to prevent application crash
+        return null; // Return null on error to handle it gracefully in the main logic
     }
 }
 
@@ -64,6 +67,7 @@ async function fetchFootballData(params) {
 app.get('/api/countries', async (req, res) => {
     try {
         const countries = await fetchFootballData({ action: 'get_countries' });
+        if (!countries) throw new Error("Could not fetch countries.");
         res.json(countries.map(c => ({ id: c.country_id, name: c.country_name })));
     } catch (error) {
         console.error('Failed to fetch countries:', error);
@@ -78,6 +82,7 @@ app.get('/api/leagues/:countryId', async (req, res) => {
     const { countryId } = req.params;
     try {
         const leagues = await fetchFootballData({ action: 'get_leagues', country_id: countryId });
+        if (!leagues) throw new Error("Could not fetch leagues for the selected country.");
         res.json(leagues.map(l => ({ id: l.league_id, name: l.league_name })));
     } catch (error) {
         console.error('Failed to fetch leagues:', error);
@@ -101,10 +106,11 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
             to: toDate,
         });
 
+        if (!fixtures) throw new Error("Could not fetch fixtures.");
         const fixtureList = Array.isArray(fixtures) ? fixtures : [];
 
         const upcomingFixtures = fixtureList
-            .filter(fixture => fixture.match_status === '')
+            .filter(fixture => fixture.match_status === '' || !fixture.match_status)
             .map(fixture => ({
                 id: fixture.match_id,
                 leagueId: fixture.league_id,
@@ -121,11 +127,10 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
     }
 });
 
-/**
- * Endpoint for AI analysis.
- * Takes fixture ID and league ID as input.
- * Fetches data, constructs a prompt, and sends to Gemini.
- */
+
+// ===================================================================================
+// AI ANALYSIS ENDPOINT - REWRITTEN WITH ENHANCED DATA FETCHING
+// ===================================================================================
 app.post('/api/analyze', async (req, res) => {
     const { fixtureId, leagueId } = req.body;
 
@@ -134,132 +139,189 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     try {
-        // Fetch specific fixture details
-        const fixtureResponse = await fetchFootballData({ action: 'get_events', match_id: fixtureId });
-        const fixture = fixtureResponse.length > 0 ? fixtureResponse[0] : {};
+        // ===========================================================================
+        // 1. FETCH ALL REQUIRED DATA IN PARALLEL FOR EFFICIENCY
+        // ===========================================================================
+        const [
+            fixtureResponse,
+            standings,
+            h2hResponse,
+            oddsData,
+            predictionsData,
+            lineupsData
+        ] = await Promise.all([
+            fetchFootballData({ action: 'get_events', match_id: fixtureId }),
+            fetchFootballData({ action: 'get_standings', league_id: leagueId }),
+            fetchFootballData({ action: 'get_H2H', firstTeamId: fixtureId.match_hometeam_id, secondTeamId: fixtureId.match_awayteam_id }),
+            fetchFootballData({ action: 'get_odds', match_id: fixtureId }),
+            fetchFootballData({ action: 'get_predictions', match_id: fixtureId }),
+            fetchFootballData({ action: 'get_lineups', match_id: fixtureId })
+        ]);
 
-        // Fetch standings to get home/away team stats
-        const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
+        const fixture = fixtureResponse && fixtureResponse.length > 0 ? fixtureResponse[0] : {};
+        if (!fixture.match_hometeam_id) {
+            return res.status(404).json({ error: 'Fixture details could not be found.' });
+        }
+        
+        // Fetch recent matches for both teams
+        const [homeTeamRecentForm, awayTeamRecentForm] = await Promise.all([
+            fetchFootballData({
+                action: 'get_events',
+                from: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), // Wider window for more data
+                to: new Date().toISOString().slice(0, 10),
+                team_id: fixture.match_hometeam_id,
+            }),
+            fetchFootballData({
+                action: 'get_events',
+                from: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+                to: new Date().toISOString().slice(0, 10),
+                team_id: fixture.match_awayteam_id,
+            })
+        ]);
+
+        // ===========================================================================
+        // 2. PROCESS AND FORMAT THE FETCHED DATA
+        // ===========================================================================
+
+        // --- Basic fixture and standings info ---
         const homeTeamStats = standings.find(s => s.team_id === fixture.match_hometeam_id) || {};
         const awayTeamStats = standings.find(s => s.team_id === fixture.match_awayteam_id) || {};
+        const h2hData = Array.isArray(h2hResponse?.firstTeam_VS_secondTeam) ? h2hResponse.firstTeam_VS_secondTeam.slice(0, 5) : [];
+        
+        // --- Process Odds ---
+        const oddsBookmaker = oddsData && oddsData.length > 0 ? oddsData[0] : {};
 
-        // Fetch recent match data for each team
-        const homeTeamRecentForm = await fetchFootballData({
-            action: 'get_events',
-            from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-            to: new Date().toISOString().slice(0, 10),
-            team_id: fixture.match_hometeam_id,
-        });
+        // --- Process API Predictions ---
+        const prediction = predictionsData && predictionsData.length > 0 ? predictionsData[0] : {};
+        const providerPredictionPrompt = `
+            Provider's Mathematical Prediction:
+            - Home Win Probability: ${prediction.prob_HW || 'N/A'}%
+            - Draw Probability: ${prediction.prob_D || 'N/A'}%
+            - Away Win Probability: ${prediction.prob_AW || 'N/A'}%
+            - Over 2.5 Goals Probability: ${prediction.prob_O || 'N/A'}%
+            - Both Teams to Score Probability: ${prediction.prob_bts || 'N/A'}%
+        `;
 
-        const awayTeamRecentForm = await fetchFootballData({
-            action: 'get_events',
-            from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-            to: new Date().toISOString().slice(0, 10),
-            team_id: fixture.match_awayteam_id,
-        });
+        // --- Process Lineups ---
+        const lineupInfo = lineupsData ? lineupsData[fixtureId] : null;
+        const formatLineup = (teamLineup) => {
+            if (!teamLineup) return 'N/A';
+            const starters = teamLineup.starting_lineups?.map(p => p.lineup_player).join(', ') || 'Not available';
+            const missing = teamLineup.missing_players?.map(p => p.lineup_player).join(', ') || 'None reported';
+            return `Starting XI: ${starters}\n  - Missing Players: ${missing}`;
+        };
+        const lineupPrompt = `
+            Team Lineup and Status:
+            - ${fixture.match_hometeam_name}: ${formatLineup(lineupInfo?.home)}
+            - ${fixture.match_awayteam_name}: ${formatLineup(lineupInfo?.away)}
+        `;
 
-        // Helper function to format form string (W, D, L)
-        const getFormString = (matches, teamId) => {
-            if (!Array.isArray(matches)) return 'N/A';
-            const results = matches.filter(m => m.match_hometeam_name && m.match_awayteam_name);
-            return results.slice(-5).map(m => {
-                const homeScore = parseInt(m.match_hometeam_score, 10);
-                const awayScore = parseInt(m.match_awayteam_score, 10);
-                if (homeScore > awayScore) {
-                    return teamId === m.match_hometeam_id ? 'W' : 'L';
-                } else if (homeScore < awayScore) {
-                    return teamId === m.match_hometeam_id ? 'L' : 'W';
-                } else {
-                    return 'D';
+        // --- Calculate Average Stats from Recent Games ---
+        const calculateAverageStats = (matches, teamId) => {
+            if (!Array.isArray(matches) || matches.length === 0) return { form: 'N/A', avgPossession: 'N/A', avgShotsOnGoal: 'N/A', avgCorners: 'N/A' };
+            
+            let possessionSum = 0, shotsOnGoalSum = 0, cornersSum = 0, validMatches = 0;
+            const form = [];
+
+            const recentMatches = matches.filter(m => m.match_status === 'Finished').slice(-5);
+
+            for (const match of recentMatches) {
+                const isHome = match.match_hometeam_id === teamId;
+                if (match.statistics && match.statistics.length > 0) {
+                    const possession = match.statistics.find(s => s.type === 'Ball Possession');
+                    const shotsOnGoal = match.statistics.find(s => s.type === 'Shots On Goal');
+                    const corners = match.statistics.find(s => s.type === 'Corners');
+
+                    if (possession) {
+                        possessionSum += parseInt(isHome ? possession.home : possession.away, 10);
+                    }
+                    if (shotsOnGoal) {
+                        shotsOnGoalSum += parseInt(isHome ? shotsOnGoal.home : shotsOnGoal.away, 10);
+                    }
+                    if (corners) {
+                        cornersSum += parseInt(isHome ? corners.home : corners.away, 10);
+                    }
+                    validMatches++;
                 }
-            }).join('');
+                
+                // Calculate form (W/D/L)
+                const homeScore = parseInt(match.match_hometeam_score, 10);
+                const awayScore = parseInt(match.match_awayteam_score, 10);
+                if (homeScore === awayScore) {
+                    form.push('D');
+                } else if ((isHome && homeScore > awayScore) || (!isHome && awayScore > homeScore)) {
+                    form.push('W');
+                } else {
+                    form.push('L');
+                }
+            }
+
+            return {
+                form: form.join(''),
+                avgPossession: validMatches > 0 ? (possessionSum / validMatches).toFixed(1) + '%' : 'N/A',
+                avgShotsOnGoal: validMatches > 0 ? (shotsOnGoalSum / validMatches).toFixed(1) : 'N/A',
+                avgCorners: validMatches > 0 ? (cornersSum / validMatches).toFixed(1) : 'N/A'
+            };
         };
 
-        const homeTeamFormString = getFormString(homeTeamRecentForm, fixture.match_hometeam_id);
-        const awayTeamFormString = getFormString(awayTeamRecentForm, fixture.match_awayteam_id);
+        const homeAvgStats = calculateAverageStats(homeTeamRecentForm, fixture.match_hometeam_id);
+        const awayAvgStats = calculateAverageStats(awayTeamRecentForm, fixture.match_awayteam_id);
 
-        // Fetch head-to-head data
-        const h2hResponse = await fetchFootballData({
-            action: 'get_H2H',
-            firstTeamId: fixture.match_hometeam_id,
-            secondTeamId: fixture.match_awayteam_id
-        });
-        const h2hData = Array.isArray(h2hResponse) ? h2hResponse.slice(0, 5) : [];
-
-        // Fetch players, managers and top scorers for both teams
-        const homeTeamPlayers = await fetchFootballData({ action: 'get_players', team_id: fixture.match_hometeam_id });
-        const awayTeamPlayers = await fetchFootballData({ action: 'get_players', team_id: fixture.match_awayteam_id });
-        const leagueTopScorers = await fetchFootballData({ action: 'get_topscorers', league_id: leagueId });
-
-        const homeManager = homeTeamPlayers.find(p => p.player_type === 'Managers') || { player_name: 'N/A' };
-        const awayManager = awayTeamPlayers.find(p => p.player_type === 'Managers') || { player_name: 'N/A' };
-
-        // Identify key players from top scorers list
-        const homeTopPlayers = leagueTopScorers
-            .filter(p => p.team_id === fixture.match_hometeam_id)
-            .map(p => `${p.player_name} (${p.goals || 0} goals)`);
-
-        const awayTopPlayers = leagueTopScorers
-            .filter(p => p.team_id === fixture.match_awayteam_id)
-            .map(p => `${p.player_name} (${p.goals || 0} goals)`);
-
-        // Fetch betting odds
-        const oddsData = await fetchFootballData({ action: 'get_odds', match_id: fixtureId });
-        const preMatchOdds = oddsData.length > 0 && oddsData[0].prematch_odds ? oddsData[0].prematch_odds : [];
-        
-        const getOdds = (betName) => preMatchOdds.find(o => o.bet_name === betName)?.odd_value || 'N/A';
-
-        // Construct the detailed prompt
+        // ===========================================================================
+        // 3. CONSTRUCT THE NEW, COMPREHENSIVE PROMPT
+        // ===========================================================================
         const prompt = `
-            Analyze the following football match and provide a betting recommendation.
-            
+            Analyze the following football match for a betting recommendation. Consider all available data points, including the provider's own mathematical predictions and team lineups, to make a well-rounded decision.
+
             Match Details:
-            - Home Team: ${fixture.match_hometeam_name || 'N/A'}
-            - Away Team: ${fixture.match_awayteam_name || 'N/A'}
-            - Date: ${fixture.match_date || 'N/A'}
-            - Time: ${fixture.match_time || 'N/A'}
+            - Match: ${fixture.match_hometeam_name || 'N/A'} vs ${fixture.match_awayteam_name || 'N/A'}
+            - Competition: ${fixture.league_name || 'N/A'}
+            - Date & Time: ${fixture.match_date || 'N/A'} at ${fixture.match_time || 'N/A'}
             - Venue: ${fixture.match_stadium || 'N/A'}
             - Referee: ${fixture.match_referee || 'N/A'}
 
-            Pre-Match Betting Odds:
-            - Home Win: ${getOdds('Home Win')}
-            - Draw: ${getOdds('Draw')}
-            - Away Win: ${getOdds('Away Win')}
-            - Over 2.5 Goals: ${getOdds('Over 2.5 Goals')}
-            - Under 2.5 Goals: ${getOdds('Under 2.5 Goals')}
-            - Both Teams to Score: ${getOdds('Both Teams to Score')}
+            ${lineupPrompt}
+
+            ${providerPredictionPrompt}
+
+            Pre-Match Betting Odds (from ${oddsBookmaker.odd_bookmakers || 'various bookmakers'}):
+            - Home Win (1): ${oddsBookmaker.odd_1 || 'N/A'}
+            - Draw (X): ${oddsBookmaker.odd_x || 'N/A'}
+            - Away Win (2): ${oddsBookmaker.odd_2 || 'N/A'}
+            - Over 2.5 Goals: ${oddsBookmaker['o+2.5'] || 'N/A'}
+            - Under 2.5 Goals: ${oddsBookmaker['u+2.5'] || 'N/A'}
             
             Head-to-Head (last 5 matches):
-            ${h2hData.length > 0 ? h2hData.map(match => `  - ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n') : '  - No recent head-to-head data available.'}
+            ${h2hData.length > 0 ? h2hData.map(match => `- ${match.match_date}: ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n') : '- No recent head-to-head data available.'}
             
-            Home Team Information:
-            - Manager: ${homeManager.player_name}
-            - Overall League Position: ${homeTeamStats.overall_league_position || 'N/A'}
-            - Home League Position: ${homeTeamStats.home_league_position || 'N/A'}
-            - Recent Form (last 5 matches): ${homeTeamFormString}
-            - Overall Points: ${homeTeamStats.overall_league_PTS || 'N/A'}
-            - Home Goals For: ${homeTeamStats.home_league_GF || 'N/A'}
-            - Home Goals Against: ${homeTeamStats.home_league_GA || 'N/A'}
-            - Key Player(s): ${homeTopPlayers.length > 0 ? homeTopPlayers.join(', ') : 'N/A'}
+            Home Team Analysis: ${fixture.match_hometeam_name}
+            - League Position: ${homeTeamStats.overall_league_position || 'N/A'} (Overall), ${homeTeamStats.home_league_position || 'N/A'} (Home)
+            - Points: ${homeTeamStats.overall_league_PTS || 'N/A'}
+            - Goals Scored/Conceded (Home): ${homeTeamStats.home_league_GF || 'N/A'} / ${homeTeamStats.home_league_GA || 'N/A'}
+            - Recent Performance (Last 5 Games):
+              - Form: ${homeAvgStats.form}
+              - Average Ball Possession: ${homeAvgStats.avgPossession}
+              - Average Shots on Goal: ${homeAvgStats.avgShotsOnGoal}
+              - Average Corners: ${homeAvgStats.avgCorners}
 
-            Away Team Information:
-            - Manager: ${awayManager.player_name}
-            - Overall League Position: ${awayTeamStats.overall_league_position || 'N/A'}
-            - Away League Position: ${awayTeamStats.away_league_position || 'N/A'}
-            - Recent Form (last 5 matches): ${awayTeamFormString}
-            - Overall Points: ${awayTeamStats.overall_league_PTS || 'N/A'}
-            - Away Goals For: ${awayTeamStats.away_league_GF || 'N/A'}
-            - Away Goals Against: ${awayTeamStats.away_league_GA || 'N/A'}
-            - Key Player(s): ${awayTopPlayers.length > 0 ? awayTopPlayers.join(', ') : 'N/A'}
+            Away Team Analysis: ${fixture.match_awayteam_name}
+            - League Position: ${awayTeamStats.overall_league_position || 'N/A'} (Overall), ${awayTeamStats.away_league_position || 'N/A'} (Away)
+            - Points: ${awayTeamStats.overall_league_PTS || 'N/A'}
+            - Goals Scored/Conceded (Away): ${awayTeamStats.away_league_GF || 'N/A'} / ${awayTeamStats.away_league_GA || 'N/A'}
+            - Recent Performance (Last 5 Games):
+              - Form: ${awayAvgStats.form}
+              - Average Ball Possession: ${awayAvgStats.avgPossession}
+              - Average Shots on Goal: ${awayAvgStats.avgShotsOnGoal}
+              - Average Corners: ${awayAvgStats.avgCorners}
             
-            Based on this data, provide a structured JSON response with a predicted outcome (e.g., "Home Win", "Away Win", "Draw"), a recommended bet (e.g., "Moneyline - Home Team", "Over 2.5 Goals"), and a confidence score (from 0 to 100).
+            Based on a holistic analysis of ALL the data provided, output a structured JSON response with your final conclusion: a predicted outcome (e.g., "Home Win", "Draw"), a specific recommended bet (e.g., "Moneyline - Home Team", "Over 2.5 Goals", "Both Teams to Score - Yes"), and a confidence score (from 0 to 100) for your recommendation.
         `;
 
-        const chatHistory = [];
-        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-
+        // ===========================================================================
+        // 4. SEND PROMPT TO GEMINI AND RETURN RESPONSE
+        // ===========================================================================
         const payload = {
-            contents: chatHistory,
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -269,13 +331,13 @@ app.post('/api/analyze', async (req, res) => {
                         "recommendedBet": { "type": "STRING" },
                         "confidenceScore": { "type": "NUMBER" }
                     },
-                    "propertyOrdering": ["predictedOutcome", "recommendedBet", "confidenceScore"]
+                    "required": ["predictedOutcome", "recommendedBet", "confidenceScore"]
                 }
             }
         };
 
         const geminiApiKey = GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`;
 
         const aiResponse = await fetch(apiUrl, {
             method: 'POST',
@@ -289,20 +351,19 @@ app.post('/api/analyze', async (req, res) => {
         }
 
         const aiResult = await aiResponse.json();
-
-        if (aiResult.candidates && aiResult.candidates.length > 0 &&
-            aiResult.candidates[0].content && aiResult.candidates[0].content.parts &&
-            aiResult.candidates[0].content.parts.length > 0) {
+        
+        if (aiResult.candidates && aiResult.candidates.length > 0) {
             const jsonString = aiResult.candidates[0].content.parts[0].text;
             const analysis = JSON.parse(jsonString);
             res.json(analysis);
         } else {
-            throw new Error('Invalid response structure from Gemini API.');
+            console.error("Invalid response from Gemini:", aiResult);
+            throw new Error('Invalid or empty response structure from the AI model.');
         }
 
     } catch (error) {
         console.error('Analysis error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: `An internal server error occurred: ${error.message}` });
     }
 });
 
