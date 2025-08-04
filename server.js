@@ -32,25 +32,30 @@ async function fetchFootballData(params) {
     const requestUrl = `${FOOTBALL_API_URL}?${queryParams.toString()}`;
     console.log('Fetching from:', requestUrl);
 
-    const response = await fetch(requestUrl);
+    try {
+        const response = await fetch(requestUrl);
 
-    if (!response.ok) {
-        throw new Error(`Football API error! Status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`Football API error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+            console.error('Football API returned an error:', data.error);
+            throw new Error(`Football API Error: ${data.error}`);
+        }
+
+        // Handle cases where API returns a string message instead of an array
+        if (data.length === 1 && typeof data[0] === 'string') {
+            return [];
+        }
+
+        return data;
+    } catch (error) {
+        console.error('An error occurred during API fetch:', error);
+        return []; // Return an empty array on error to prevent application crash
     }
-
-    const data = await response.json();
-
-    if (data.error) {
-        console.error('Football API returned an error:', data.error);
-        throw new Error(`Football API Error: ${data.error}`);
-    }
-
-    // Handle cases where API returns a string message instead of an array
-    if (data.length === 1 && typeof data[0] === 'string') {
-        return [];
-    }
-
-    return data;
 }
 
 /**
@@ -96,10 +101,8 @@ app.get('/api/fixtures/:leagueId', async (req, res) => {
             to: toDate,
         });
 
-        // The API might return an error message in an array if no matches are found, so we handle it.
         const fixtureList = Array.isArray(fixtures) ? fixtures : [];
 
-        // Filter for upcoming (not started) matches, which have an empty match_status
         const upcomingFixtures = fixtureList
             .filter(fixture => fixture.match_status === '')
             .map(fixture => ({
@@ -132,28 +135,13 @@ app.post('/api/analyze', async (req, res) => {
 
     try {
         // Fetch specific fixture details
-        const fixtureResponse = await fetchFootballData({
-            action: 'get_events',
-            match_id: fixtureId
-        });
-        const fixture = fixtureResponse.length > 0 ? fixtureResponse[0] : null;
-
-        if (!fixture) {
-            return res.status(404).json({ error: 'Fixture not found.' });
-        }
+        const fixtureResponse = await fetchFootballData({ action: 'get_events', match_id: fixtureId });
+        const fixture = fixtureResponse.length > 0 ? fixtureResponse[0] : {};
 
         // Fetch standings to get home/away team stats
         const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });
-        const homeTeamStats = standings.find(s => s.team_id === fixture.match_hometeam_id);
-        const awayTeamStats = standings.find(s => s.team_id === fixture.match_awayteam_id);
-
-        // Fetch head-to-head data
-        const h2hResponse = await fetchFootballData({
-            action: 'get_H2H',
-            firstTeamId: fixture.match_hometeam_id,
-            secondTeamId: fixture.match_awayteam_id
-        });
-        const h2hData = Array.isArray(h2hResponse) ? h2hResponse.slice(0, 5) : [];
+        const homeTeamStats = standings.find(s => s.team_id === fixture.match_hometeam_id) || {};
+        const awayTeamStats = standings.find(s => s.team_id === fixture.match_awayteam_id) || {};
 
         // Fetch recent match data for each team
         const homeTeamRecentForm = await fetchFootballData({
@@ -162,7 +150,7 @@ app.post('/api/analyze', async (req, res) => {
             to: new Date().toISOString().slice(0, 10),
             team_id: fixture.match_hometeam_id,
         });
-        
+
         const awayTeamRecentForm = await fetchFootballData({
             action: 'get_events',
             from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -171,14 +159,12 @@ app.post('/api/analyze', async (req, res) => {
         });
 
         // Helper function to format form string (W, D, L)
-        const getFormString = (matches) => {
+        const getFormString = (matches, teamId) => {
             if (!Array.isArray(matches)) return 'N/A';
             const results = matches.filter(m => m.match_hometeam_name && m.match_awayteam_name);
             return results.slice(-5).map(m => {
                 const homeScore = parseInt(m.match_hometeam_score, 10);
                 const awayScore = parseInt(m.match_awayteam_score, 10);
-                const teamId = fixture.match_hometeam_id === m.match_hometeam_id ? fixture.match_hometeam_id : fixture.match_awayteam_id;
-
                 if (homeScore > awayScore) {
                     return teamId === m.match_hometeam_id ? 'W' : 'L';
                 } else if (homeScore < awayScore) {
@@ -189,75 +175,82 @@ app.post('/api/analyze', async (req, res) => {
             }).join('');
         };
 
-        const homeTeamFormString = getFormString(homeTeamRecentForm);
-        const awayTeamFormString = getFormString(awayTeamRecentForm);
+        const homeTeamFormString = getFormString(homeTeamRecentForm, fixture.match_hometeam_id);
+        const awayTeamFormString = getFormString(awayTeamRecentForm, fixture.match_awayteam_id);
 
-        // Fetch players and managers for both teams
-        const homeTeamPlayers = await fetchFootballData({
-            action: 'get_players',
-            team_id: fixture.match_hometeam_id
+        // Fetch head-to-head data
+        const h2hResponse = await fetchFootballData({
+            action: 'get_H2H',
+            firstTeamId: fixture.match_hometeam_id,
+            secondTeamId: fixture.match_awayteam_id
         });
-        const awayTeamPlayers = await fetchFootballData({
-            action: 'get_players',
-            team_id: fixture.match_awayteam_id
-        });
+        const h2hData = Array.isArray(h2hResponse) ? h2hResponse.slice(0, 5) : [];
+
+        // Fetch players, managers and top scorers for both teams
+        const homeTeamPlayers = await fetchFootballData({ action: 'get_players', team_id: fixture.match_hometeam_id });
+        const awayTeamPlayers = await fetchFootballData({ action: 'get_players', team_id: fixture.match_awayteam_id });
+        const leagueTopScorers = await fetchFootballData({ action: 'get_topscorers', league_id: leagueId });
 
         const homeManager = homeTeamPlayers.find(p => p.player_type === 'Managers') || { player_name: 'N/A' };
         const awayManager = awayTeamPlayers.find(p => p.player_type === 'Managers') || { player_name: 'N/A' };
 
-        const homePlayersString = homeTeamPlayers.filter(p => p.player_type !== 'Managers').map(p => `${p.player_name} (${p.player_type})`).join(', ');
-        const awayPlayersString = awayTeamPlayers.filter(p => p.player_type !== 'Managers').map(p => `${p.player_name} (${p.player_type})`).join(', ');
+        // Identify key players from top scorers list
+        const homeTopPlayers = leagueTopScorers
+            .filter(p => p.team_id === fixture.match_hometeam_id)
+            .map(p => `${p.player_name} (${p.goals || 0} goals)`);
+
+        const awayTopPlayers = leagueTopScorers
+            .filter(p => p.team_id === fixture.match_awayteam_id)
+            .map(p => `${p.player_name} (${p.goals || 0} goals)`);
 
         // Fetch betting odds
-        const oddsData = await fetchFootballData({
-            action: 'get_odds',
-            match_id: fixtureId
-        });
-
-        const preMatchOdds = oddsData.length > 0 ? oddsData[0].prematch_odds : {};
-        const homeWinOdds = preMatchOdds.filter(o => o.bet_name === 'Home Win')[0]?.odd_value || 'N/A';
-        const drawOdds = preMatchOdds.filter(o => o.bet_name === 'Draw')[0]?.odd_value || 'N/A';
-        const awayWinOdds = preMatchOdds.filter(o => o.bet_name === 'Away Win')[0]?.odd_value || 'N/A';
-        const over25Odds = preMatchOdds.filter(o => o.bet_name === 'Over 2.5 Goals')[0]?.odd_value || 'N/A';
-        const under25Odds = preMatchOdds.filter(o => o.bet_name === 'Under 2.5 Goals')[0]?.odd_value || 'N/A';
+        const oddsData = await fetchFootballData({ action: 'get_odds', match_id: fixtureId });
+        const preMatchOdds = oddsData.length > 0 && oddsData[0].prematch_odds ? oddsData[0].prematch_odds : [];
         
+        const getOdds = (betName) => preMatchOdds.find(o => o.bet_name === betName)?.odd_value || 'N/A';
+
+        // Construct the detailed prompt
         const prompt = `
             Analyze the following football match and provide a betting recommendation.
             
             Match Details:
-            - Home Team: ${fixture.match_hometeam_name}
-            - Away Team: ${fixture.match_awayteam_name}
-            - Date: ${fixture.match_date}
+            - Home Team: ${fixture.match_hometeam_name || 'N/A'}
+            - Away Team: ${fixture.match_awayteam_name || 'N/A'}
+            - Date: ${fixture.match_date || 'N/A'}
+            - Time: ${fixture.match_time || 'N/A'}
             - Venue: ${fixture.match_stadium || 'N/A'}
             - Referee: ${fixture.match_referee || 'N/A'}
 
             Pre-Match Betting Odds:
-            - Home Win: ${homeWinOdds}
-            - Draw: ${drawOdds}
-            - Away Win: ${awayWinOdds}
-            - Over 2.5 Goals: ${over25Odds}
-            - Under 2.5 Goals: ${under25Odds}
-
+            - Home Win: ${getOdds('Home Win')}
+            - Draw: ${getOdds('Draw')}
+            - Away Win: ${getOdds('Away Win')}
+            - Over 2.5 Goals: ${getOdds('Over 2.5 Goals')}
+            - Under 2.5 Goals: ${getOdds('Under 2.5 Goals')}
+            - Both Teams to Score: ${getOdds('Both Teams to Score')}
+            
             Head-to-Head (last 5 matches):
             ${h2hData.length > 0 ? h2hData.map(match => `  - ${match.match_hometeam_name} ${match.match_hometeam_score} - ${match.match_awayteam_score} ${match.match_awayteam_name}`).join('\n') : '  - No recent head-to-head data available.'}
             
             Home Team Information:
             - Manager: ${homeManager.player_name}
-            - League Position: ${homeTeamStats ? homeTeamStats.overall_league_position : 'N/A'}
+            - Overall League Position: ${homeTeamStats.overall_league_position || 'N/A'}
+            - Home League Position: ${homeTeamStats.home_league_position || 'N/A'}
             - Recent Form (last 5 matches): ${homeTeamFormString}
-            - Overall Points: ${homeTeamStats ? homeTeamStats.overall_league_PTS : 'N/A'}
-            - Goals For: ${homeTeamStats ? homeTeamStats.overall_league_GF : 'N/A'}
-            - Goals Against: ${homeTeamStats ? homeTeamStats.overall_league_GA : 'N/A'}
-            - Key Players: ${homePlayersString.length > 0 ? homePlayersString : 'N/A'}
+            - Overall Points: ${homeTeamStats.overall_league_PTS || 'N/A'}
+            - Home Goals For: ${homeTeamStats.home_league_GF || 'N/A'}
+            - Home Goals Against: ${homeTeamStats.home_league_GA || 'N/A'}
+            - Key Player(s): ${homeTopPlayers.length > 0 ? homeTopPlayers.join(', ') : 'N/A'}
 
             Away Team Information:
             - Manager: ${awayManager.player_name}
-            - League Position: ${awayTeamStats ? awayTeamStats.overall_league_position : 'N/A'}
+            - Overall League Position: ${awayTeamStats.overall_league_position || 'N/A'}
+            - Away League Position: ${awayTeamStats.away_league_position || 'N/A'}
             - Recent Form (last 5 matches): ${awayTeamFormString}
-            - Overall Points: ${awayTeamStats ? awayTeamStats.overall_league_PTS : 'N/A'}
-            - Goals For: ${awayTeamStats ? awayTeamStats.overall_league_GF : 'N/A'}
-            - Goals Against: ${awayTeamStats ? awayTeamStats.overall_league_GA : 'N/A'}
-            - Key Players: ${awayPlayersString.length > 0 ? awayPlayersString : 'N/A'}
+            - Overall Points: ${awayTeamStats.overall_league_PTS || 'N/A'}
+            - Away Goals For: ${awayTeamStats.away_league_GF || 'N/A'}
+            - Away Goals Against: ${awayTeamStats.away_league_GA || 'N/A'}
+            - Key Player(s): ${awayTopPlayers.length > 0 ? awayTopPlayers.join(', ') : 'N/A'}
             
             Based on this data, provide a structured JSON response with a predicted outcome (e.g., "Home Win", "Away Win", "Draw"), a recommended bet (e.g., "Moneyline - Home Team", "Over 2.5 Goals"), and a confidence score (from 0 to 100).
         `;
@@ -265,7 +258,6 @@ app.post('/api/analyze', async (req, res) => {
         const chatHistory = [];
         chatHistory.push({ role: "user", parts: [{ text: prompt }] });
 
-        // Define the JSON schema for the response
         const payload = {
             contents: chatHistory,
             generationConfig: {
