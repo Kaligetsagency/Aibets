@@ -59,29 +59,84 @@ async function fetchFootballData(params) {
 }
 
 /**
+ * Endpoint to get a list of all countries with football leagues.
+ */
+app.get('/api/countries', async (req, res) => {
+    try {
+        const countries = await fetchFootballData({ action: 'get_countries' });
+        res.json(countries.map(c => ({ id: c.country_id, name: c.country_name })));
+    } catch (error) {
+        console.error('Failed to fetch countries:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Endpoint to get a list of leagues for a specific country.
+ */
+app.get('/api/leagues/:countryId', async (req, res) => {
+    const { countryId } = req.params;
+    try {
+        const leagues = await fetchFootballData({ action: 'get_leagues', country_id: countryId });
+        res.json(leagues.map(l => ({ id: l.league_id, name: l.league_name })));
+    } catch (error) {
+        console.error('Failed to fetch leagues:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Endpoint to get upcoming fixtures for a specific league.
+ */
+app.get('/api/fixtures/:leagueId', async (req, res) => {
+    const { leagueId } = req.params;
+    const fromDate = new Date().toISOString().slice(0, 10);
+    const toDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    try {
+        const fixtures = await fetchFootballData({
+            action: 'get_events',
+            league_id: leagueId,
+            from: fromDate,
+            to: toDate,
+        });
+
+        const fixtureList = Array.isArray(fixtures) ? fixtures : [];
+
+        const upcomingFixtures = fixtureList
+            .filter(fixture => fixture.match_status === '')
+            .map(fixture => ({
+                id: fixture.match_id,
+                leagueId: fixture.league_id,
+                name: `${fixture.match_hometeam_name} vs ${fixture.match_awayteam_name}`,
+                homeTeamName: fixture.match_hometeam_name,
+                awayTeamName: fixture.match_awayteam_name,
+                date: fixture.match_date,
+            }));
+
+        res.json(upcomingFixtures);
+    } catch (error) {
+        console.error('Failed to fetch fixtures:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * Endpoint for AI analysis.
- * Takes fixture name as input.
- * Searches for the fixture, fetches data, constructs a prompt, and sends to Gemini.
+ * Takes fixture ID and league ID as input.
+ * Fetches data, constructs a prompt, and sends to Gemini.
  */
 app.post('/api/analyze', async (req, res) => {
-    const { fixtureName } = req.body;
+    const { fixtureId, leagueId } = req.body;
 
-    if (!fixtureName) {
-        return res.status(400).json({ error: 'Fixture name is required for analysis.' });
+    if (!fixtureId || !leagueId) {
+        return res.status(400).json({ error: 'Missing required parameters for analysis.' });
     }
 
     try {
-        // Search for the fixture by name to get its ID and league ID
-        const searchResults = await fetchFootballData({ action: 'get_events', match_name: fixtureName });
-        
-        if (!searchResults || searchResults.length === 0) {
-            return res.status(404).json({ error: `No fixture found for the name: "${fixtureName}".` });
-        }
-
-        // Take the first result as the most relevant match
-        const fixture = searchResults[0];
-        const fixtureId = fixture.match_id;
-        const leagueId = fixture.league_id;
+        // Fetch specific fixture details
+        const fixtureResponse = await fetchFootballData({ action: 'get_events', match_id: fixtureId });
+        const fixture = fixtureResponse.length > 0 ? fixtureResponse[0] : {};
 
         // Fetch standings to get home/away team stats
         const standings = await fetchFootballData({ action: 'get_standings', league_id: leagueId });

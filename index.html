@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Betting Analysis</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Betting Analysis</h1>
+            <p>Select a country, league, and fixture, or use the search bar to find a match to analyze.</p>
+        </header>
+
+        <main>
+            <div class="controls">
+                <div class="select-group">
+                    <label for="country-select">Country:</label>
+                    <select id="country-select">
+                        <option value="">Loading countries...</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label for="league-select">League:</label>
+                    <select id="league-select" disabled>
+                        <option value="">Select a Country first</option>
+                    </select>
+                </div>
+                <div class="select-group">
+                    <label for="fixture-search">Search Fixtures:</label>
+                    <input type="text" id="fixture-search" placeholder="e.g., Manchester United vs Liverpool" disabled>
+                </div>
+                <div class="select-group">
+                    <label for="fixture-select">Upcoming Fixture:</label>
+                    <select id="fixture-select" disabled>
+                        <option value="">Select a League first</option>
+                    </select>
+                </div>
+                <button id="analyze-btn" class="btn-primary">Get Analysis</button>
+            </div>
+
+            <div id="results-container">
+                <div id="loader" class="loader-hidden"></div>
+                <div id="error-message" class="error-hidden"></div>
+                <div id="results-content" style="display: none;">
+                    <h2>Analysis Results</h2>
+                    <div class="result-item">
+                        <label>Predicted Outcome:</label>
+                        <span id="predicted-outcome">N/A</span>
+                    </div>
+                    <div class="result-item">
+                        <label>Recommended Bet:</label>
+                        <span id="recommended-bet">N/A</span>
+                    </div>
+                    <div class="result-item">
+                        <label>Confidence Score:</label>
+                        <span id="confidence-score">N/A</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
