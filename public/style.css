@@ -49,7 +49,7 @@ header p {
     margin-bottom: 30px;
 }
 
-.select-group {
+.input-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -60,8 +60,7 @@ label {
     color: #444;
 }
 
-input[type="text"],
-select {
+input[type="text"] {
     width: 100%;
     padding: 12px;
     border: 1px solid #ccc;
@@ -71,8 +70,7 @@ select {
     transition: border-color 0.3s;
 }
 
-input[type="text"]:focus,
-select:focus {
+input[type="text"]:focus {
     outline: none;
     border-color: #1a237e;
 }
@@ -197,4 +195,3 @@ select:focus {
     border-radius: 5px;
     cursor: pointer;
     }
-    
