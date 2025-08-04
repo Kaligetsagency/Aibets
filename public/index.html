@@ -11,32 +11,14 @@
     <div class="container">
         <header>
             <h1>AI Betting Analysis</h1>
-            <p>Select a country, league, and fixture, or use the search bar to find a match to analyze.</p>
+            <p>Enter a fixture name below to get a comprehensive AI analysis and betting recommendation.</p>
         </header>
 
         <main>
             <div class="controls">
-                <div class="select-group">
-                    <label for="country-select">Country:</label>
-                    <select id="country-select">
-                        <option value="">Loading countries...</option>
-                    </select>
-                </div>
-                <div class="select-group">
-                    <label for="league-select">League:</label>
-                    <select id="league-select" disabled>
-                        <option value="">Select a Country first</option>
-                    </select>
-                </div>
-                <div class="select-group">
-                    <label for="fixture-search">Search Fixtures:</label>
-                    <input type="text" id="fixture-search" placeholder="e.g., Manchester United vs Liverpool" disabled>
-                </div>
-                <div class="select-group">
-                    <label for="fixture-select">Upcoming Fixture:</label>
-                    <select id="fixture-select" disabled>
-                        <option value="">Select a League first</option>
-                    </select>
+                <div class="input-group">
+                    <label for="fixture-search">Search Fixture:</label>
+                    <input type="text" id="fixture-search" placeholder="e.g., Manchester United vs Liverpool">
                 </div>
                 <button id="analyze-btn" class="btn-primary">Get Analysis</button>
             </div>
