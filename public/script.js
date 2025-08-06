@@ -25,12 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const awayTeam = document.getElementById('away-team').value;
 
         try {
-            const response = await fetch('/analyze-match', {
+            const response = await fetch('/api/predict', { // Changed endpoint to match server.js
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ homeTeam, awayTeam }),
+                body: JSON.stringify({ team1: homeTeam, team2: awayTeam }), // Updated key names
             });
 
             if (!response.ok) {
@@ -41,9 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             // Display results
+            // Updated to expect a single prediction text string
             predictionText.textContent = data.prediction;
-            recommendationText.textContent = data.bettingRecommendation;
-            confidenceText.textContent = data.confidence;
             
             loadingDiv.classList.add('hidden');
             resultContentDiv.classList.remove('hidden');
