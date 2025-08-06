@@ -3,73 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Fixture Analyst</title>
+    <title>Football Match Analyst</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
-    <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-700">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
-                Football Match Analyst
-            </h1>
-            <p class="text-gray-400 text-lg">Powered by Gemini AI</p>
-        </header>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-2xl">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2">Football Match Analyst</h1>
+            <p class="text-gray-400">Powered by Gemini AI</p>
+        </div>
 
-        <form id="analysis-form" class="space-y-6">
+        <div class="space-y-6">
             <div>
-                <label for="home-team" class="block text-sm font-medium text-gray-300">Home Team</label>
-                <input type="text" id="home-team" name="homeTeam" required
-                       class="mt-1 block w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-300 placeholder-gray-400"
-                       placeholder="e.g., Manchester United">
+                <label for="home-team" class="block text-sm font-medium text-gray-300 mb-1">Home Team</label>
+                <input type="text" id="home-team" class="w-full p-3 rounded-xl bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Adr Cobano">
             </div>
             <div>
-                <label for="away-team" class="block text-sm font-medium text-gray-300">Away Team</label>
-                <input type="text" id="away-team" name="awayTeam" required
-                       class="mt-1 block w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-300 placeholder-gray-400"
-                       placeholder="e.g., Liverpool">
+                <label for="away-team" class="block text-sm font-medium text-gray-300 mb-1">Away Team</label>
+                <input type="text" id="away-team" class="w-full p-3 rounded-xl bg-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="e.g., Municipal Liberia">
             </div>
-            <button type="submit" id="analyze-btn"
-                    class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-gray-800 transition duration-300">
+            <button id="analyze-button" class="w-full py-4 text-lg font-semibold rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
                 Analyze Match
             </button>
-        </form>
+        </div>
 
-        <div id="results-container" class="mt-8 hidden">
-            <div id="loading" class="text-center">
-                <svg class="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div id="result-container" class="mt-8">
+            <div id="loading-spinner" class="hidden text-center">
+                <svg class="animate-spin h-8 w-8 text-blue-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <p class="mt-2 text-gray-400">Analyzing, please wait...</p>
+                <p class="mt-2 text-gray-400">Analyzing match...</p>
             </div>
-            
-            <div id="result-content" class="space-y-6 hidden">
-                <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 shadow-md">
-                    <h3 class="text-2xl font-semibold mb-2 text-blue-400">Prediction</h3>
-                    <p id="prediction-text" class="text-gray-300"></p>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 shadow-md">
-                        <h3 class="text-2xl font-semibold mb-2 text-purple-400">Betting Recommendation</h3>
-                        <p id="recommendation-text" class="text-gray-300"></p>
-                    </div>
-                    <div class="bg-gray-700 p-6 rounded-lg border border-gray-600 shadow-md">
-                        <h3 class="text-2xl font-semibold mb-2 text-green-400">Confidence</h3>
-                        <p id="confidence-text" class="text-gray-300"></p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="error-message" class="bg-red-900 border border-red-700 p-4 rounded-lg mt-6 hidden">
-                <p class="text-red-300 font-medium"></p>
-            </div>
+            <div id="prediction-output" class="hidden bg-gray-700 p-6 rounded-2xl shadow-inner text-gray-200 whitespace-pre-wrap"></div>
+            <div id="error-message" class="hidden bg-red-800 p-6 rounded-2xl shadow-inner text-red-200"></div>
         </div>
     </div>
-    <script src="script.js"></script>
+
+    <script>
+        const analyzeButton = document.getElementById('analyze-button');
+        const homeTeamInput = document.getElementById('home-team');
+        const awayTeamInput = document.getElementById('away-team');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const predictionOutput = document.getElementById('prediction-output');
+        const errorMessage = document.getElementById('error-message');
+
+        // Use exponential backoff for API calls
+        const withBackoff = async (func, retries = 5, delay = 1000) => {
+            try {
+                return await func();
+            } catch (error) {
+                if (retries > 0 && (error.status === 429 || error.status >= 500)) {
+                    console.warn(`API call failed, retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return withBackoff(func, retries - 1, delay * 2);
+                }
+                throw error;
+            }
+        };
+
+        analyzeButton.addEventListener('click', async () => {
+            const team1 = homeTeamInput.value.trim();
+            const team2 = awayTeamInput.value.trim();
+            
+            if (!team1 || !team2) {
+                displayError('Please enter both home and away teams.');
+                return;
+            }
+
+            // Clear previous results and show loading spinner
+            predictionOutput.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            loadingSpinner.classList.remove('hidden');
+            
+            // In a real application, you would gather detailed match data here
+            // For this example, we'll use a placeholder
+            const matchData = `
+            - Recent Form: Team A (WWLDW), Team B (LLDLL)
+            - Player Injuries: Team A (Star Striker out), Team B (No major injuries)
+            - Head-to-Head: In last 5 matches, 3 wins for Team A, 2 draws.
+            - Venue: Home stadium for Team A.
+            - Referee: Known for a high number of yellow cards.
+            `;
+
+            const prompt = `
+            You are a professional sports data analyst with access to the most advanced football analytics. Analyze the provided data for a match between ${team1} and ${team2} and provide a detailed prediction.
+
+            **Goal:** Generate a comprehensive betting analysis for the upcoming match.
+
+            **Instructions:**
+            1.  **Analyze and Explain:** Break down the analysis into a few key sections:
+                * **Team Performance (Tactical & Positional):** Look at recent form, home/away advantage, and head-to-head records. Include a deep dive into advanced metrics like expected goals (xG), expected assists (xA), and possession-adjusted tackles.
+                * **Player Analysis (Form & Fitness):** Evaluate key player performance using metrics like player ratings, heat maps, and recent goal/assist contributions. Note any injuries, suspensions, or returns from injury.
+                * **In-Game Dynamics & Psychological Factors:** Consider team morale, recent performance in high-pressure situations, and tactical trends (e.g., set-piece effectiveness, pressing intensity, passing networks).
+                * **Referee & Environmental Factors:** Include the referee's historical officiating style, the impact of the crowd, and potential weather conditions.
+
+            2.  **Provide a Confidence Score:** Based on your analysis, provide a confidence score from 0-100% for the predicted outcome. Do not output 100%. State that a 100% prediction is impossible due to the nature of sports.
+
+            3.  **Final Prediction:** Conclude with a clear prediction (e.g., "Home Win," "Draw," "Away Win") and a summary of the key reasons behind it.
+
+            **Match Data for Analysis:**
+            ${matchData}
+
+            **Example Output Structure:**
+            - **Analysis:** [Detailed breakdown of the above points]
+            - **Confidence Score:** [A number from 0-99]%
+            - **Prediction:** [Final outcome and rationale]
+            `;
+
+            try {
+                const payload = {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }]
+                };
+                const apiKey = ""; // The canvas environment will provide this API key
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const fetchFunc = () => fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const response = await withBackoff(fetchFunc);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    displayPrediction(text);
+                } else {
+                    console.error('API response was empty or malformed:', result);
+                    displayError('Failed to get a valid prediction. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error fetching from Gemini API:', error);
+                displayError('Failed to get a prediction. Please try again later.');
+            } finally {
+                loadingSpinner.classList.add('hidden');
+            }
+        });
+
+        function displayPrediction(text) {
+            predictionOutput.textContent = text;
+            predictionOutput.classList.remove('hidden');
+        }
+
+        function displayError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+    </script>
 </body>
 </html>
+                    
