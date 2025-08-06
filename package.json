@@ -1,16 +1,14 @@
 {
-  "name": "ai-betting-analysis",
+  "name": "football-analyst",
   "version": "1.0.0",
-  "description": "An application for sports betting analysis using a sports data API and Gemini AI.",
+  "description": "An app that analyzes football matches using the Gemini API.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "author": "Gemini",
-  "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
   }
 }
