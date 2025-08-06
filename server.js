@@ -1,124 +1,94 @@
+// A simple Express.js server to handle API calls
 const express = require('express');
-const fetch = require('node-fetch');
-const path = require('path');
-require('dotenv').config();
-
+const https = require('https'); // Use Node.js's built-in https module
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.static('public')); // Serve static HTML files from a 'public' directory
 
-const API_KEY = process.env.GEMINI_API_KEY;
+// Retrieve the Gemini API key from the environment variables
+const apiKey = process.env.GEMINI_API_KEY;
 
-// Check if API key is present
-if (!API_KEY) {
-  console.error("GEMINI_API_KEY is not set. Please create a .env file and add your key.");
-  process.exit(1);
-}
+// API endpoint to generate betting advice
+app.post('/api/predict', (req, res) => {
+    const { team1, team2, matchData } = req.body;
 
-app.post('/analyze-match', async (req, res) => {
-  const { homeTeam, awayTeam } = req.body;
+    const detailedPrompt = `
+    You are a professional sports data analyst with access to the most advanced football analytics. Analyze the provided data for a match between ${team1} and ${team2} and provide a detailed prediction.
 
-  if (!homeTeam || !awayTeam) {
-    return res.status(400).json({ error: 'Home team and away team are required.' });
-  }
+    **Goal:** Generate a comprehensive betting analysis for the upcoming match.
 
-  // A more detailed, "supercharged" prompt
-  const prompt = `Act as an elite football match analyst. Analyze an upcoming football fixture between ${homeTeam} and ${awayTeam}. Provide a comprehensive, data-driven analysis by considering the following variables:
+    **Instructions:**
+    1.  **Analyze and Explain:** Break down the analysis into a few key sections:
+        * **Team Performance (Tactical & Positional):** Look at recent form, home/away advantage, and head-to-head records. Include a deep dive into advanced metrics like expected goals (xG), expected assists (xA), and possession-adjusted tackles.
+        * **Player Analysis (Form & Fitness):** Evaluate key player performance using metrics like player ratings, heat maps, and recent goal/assist contributions. Note any injuries, suspensions, or returns from injury.
+        * **In-Game Dynamics & Psychological Factors:** Consider team morale, recent performance in high-pressure situations, and tactical trends (e.g., set-piece effectiveness, pressing intensity, passing networks).
+        * **Referee & Environmental Factors:** Include the referee's historical officiating style, the impact of the crowd, and potential weather conditions.
 
-- **Recent Team Form:** Analyze the last 5-10 matches for each team.
-- **Head-to-Head Records:** Consider historical results between the two teams.
-- **Player-Specifics:** Report on key player injuries, suspensions, or returns from injury. Also, consider the individual form of star players.
-- **Statistical Performance Metrics:** Look at key statistics such as goals scored, goals conceded, expected goals (xG), and defensive efficiency.
-- **Tactical Analysis:** Evaluate the typical formations and playing styles of both teams (e.g., possession-based, counter-attacking, high-press) and how they might match up.
-- **Home-Field Advantage:** Consider the impact of playing at home for ${homeTeam}.
-- **Match Importance:** Factor in the context of the match (e.g., a critical league game, a cup final, or a friendly).
-- **Managerial Impact:** Note any recent managerial changes or tactical shifts.
-- **External Factors:** Briefly consider potential impacts like weather or pitch conditions if relevant.
+    2.  **Provide a Confidence Score:** Based on your analysis, provide a confidence score from 0-100% for the predicted outcome. Do not output 100%. State that a 100% prediction is impossible due to the nature of sports.
 
-Synthesize this information into a concise prediction, a betting recommendation, and a confidence score.
+    3.  **Final Prediction:** Conclude with a clear prediction (e.g., "Home Win," "Draw," "Away Win") and a summary of the key reasons behind it.
 
-Provide the response in a JSON format with the following keys:
-{
-  "prediction": "string",
-  "bettingRecommendation": "string",
-  "confidence": "string"
-}
+    **Match Data for Analysis:**
+    ${matchData}
 
-Example format:
-{
-  "prediction": "${homeTeam} to win 2-1",
-  "bettingRecommendation": "Bet on 'Over 2.5 goals'",
-  "confidence": "High (8/10)"
-}
-`;
+    **Example Output Structure:**
+    - **Analysis:** [Detailed breakdown of the above points]
+    - **Confidence Score:** [A number from 0-99]%
+    - **Prediction:** [Final outcome and rationale]
+    `;
 
-  try {
-    const payload = {
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
+    const postData = JSON.stringify({
+        contents: [{
+            parts: [{
+                text: detailedPrompt
+            }]
+        }]
+    });
+
+    const options = {
+        hostname: 'generativelanguage.googleapis.com',
+        path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': postData.length
+        }
     };
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
-    
-    // Implement exponential backoff for API calls
-    let response;
-    let attempts = 0;
-    const maxRetries = 5;
-    const initialDelay = 1000; // 1 second
-
-    while (attempts < maxRetries) {
-      try {
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
+    const apiReq = https.request(options, (apiRes) => {
+        let data = '';
+        apiRes.on('data', (chunk) => {
+            data += chunk;
         });
+        apiRes.on('end', () => {
+            try {
+                const result = JSON.parse(data);
+                if (result.candidates && result.candidates.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    res.json({ prediction: text });
+                } else {
+                    console.error('API response was empty or malformed:', result);
+                    res.status(500).json({ error: 'Failed to get a valid prediction from the API.' });
+                }
+            } catch (error) {
+                console.error('Error parsing API response:', error);
+                res.status(500).json({ error: 'Failed to parse the prediction data.' });
+            }
+        });
+    });
 
-        if (response.ok) {
-          break; // Exit the loop if the request was successful
-        }
-      } catch (error) {
-        // Log error but don't re-throw to allow for retries
-        console.error(`Fetch attempt ${attempts + 1} failed:`, error);
-      }
+    apiReq.on('error', (error) => {
+        console.error('Error with API request:', error);
+        res.status(500).json({ error: `API request failed: ${error.message}` });
+    });
 
-      attempts++;
-      const delay = initialDelay * Math.pow(2, attempts - 1);
-      if (attempts < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw new Error('All API fetch attempts failed.');
-      }
-    }
-
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-
-    const result = await response.json();
-    const generatedContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (generatedContent) {
-      const parsedContent = JSON.parse(generatedContent);
-      res.json(parsedContent);
-    } else {
-      throw new Error('No content was generated by the API.');
-    }
-  } catch (error) {
-    console.error("Error analyzing match:", error);
-    res.status(500).json({ error: 'Failed to get a prediction. Please try again.' });
-  }
+    apiReq.write(postData);
+    apiReq.end();
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
 });
-    
+      
