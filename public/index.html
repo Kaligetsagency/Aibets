@@ -54,7 +54,6 @@
         const predictionOutput = document.getElementById('prediction-output');
         const errorMessage = document.getElementById('error-message');
 
-        // Use exponential backoff for API calls
         const withBackoff = async (func, retries = 5, delay = 1000) => {
             try {
                 return await func();
@@ -77,39 +76,25 @@
                 return;
             }
 
-            // Clear previous results and show loading spinner
             predictionOutput.classList.add('hidden');
             errorMessage.classList.add('hidden');
             loadingSpinner.classList.remove('hidden');
             
-            // In a real application, you would gather detailed match data here
-            // For this example, we'll use a placeholder
-            const matchData = `
-            - Recent Form: Team A (WWLDW), Team B (LLDLL)
-            - Player Injuries: Team A (Star Striker out), Team B (No major injuries)
-            - Head-to-Head: In last 5 matches, 3 wins for Team A, 2 draws.
-            - Venue: Home stadium for Team A.
-            - Referee: Known for a high number of yellow cards.
-            `;
-
+            // The prompt is now modified to instruct the AI to use its own knowledge base
             const prompt = `
-            You are a professional sports data analyst with access to the most advanced football analytics. Analyze the provided data for a match between ${team1} and ${team2} and provide a detailed prediction.
+            You are a professional sports data analyst with access to a vast database of football analytics. Analyze a match between ${team1} and ${team2} and provide a detailed prediction. Do not use external data. Use your internal knowledge base to generate the analysis.
 
             **Goal:** Generate a comprehensive betting analysis for the upcoming match.
 
             **Instructions:**
-            1.  **Analyze and Explain:** Break down the analysis into a few key sections:
-                * **Team Performance (Tactical & Positional):** Look at recent form, home/away advantage, and head-to-head records. Include a deep dive into advanced metrics like expected goals (xG), expected assists (xA), and possession-adjusted tackles.
-                * **Player Analysis (Form & Fitness):** Evaluate key player performance using metrics like player ratings, heat maps, and recent goal/assist contributions. Note any injuries, suspensions, or returns from injury.
-                * **In-Game Dynamics & Psychological Factors:** Consider team morale, recent performance in high-pressure situations, and tactical trends (e.g., set-piece effectiveness, pressing intensity, passing networks).
-                * **Referee & Environmental Factors:** Include the referee's historical officiating style, the impact of the crowd, and potential weather conditions.
+            1.  **Analyze and Explain:** Break down the analysis into a few key sections based on your knowledge:
+                * **Team Performance (Tactical & Positional):** Discuss recent form, home/away advantage, and head-to-head records.
+                * **Player Analysis (Form & Fitness):** Evaluate key player performance and note any known injuries or suspensions.
+                * **In-Game Dynamics & Psychological Factors:** Consider team morale and tactical trends.
 
             2.  **Provide a Confidence Score:** Based on your analysis, provide a confidence score from 0-100% for the predicted outcome. Do not output 100%. State that a 100% prediction is impossible due to the nature of sports.
 
             3.  **Final Prediction:** Conclude with a clear prediction (e.g., "Home Win," "Draw," "Away Win") and a summary of the key reasons behind it.
-
-            **Match Data for Analysis:**
-            ${matchData}
 
             **Example Output Structure:**
             - **Analysis:** [Detailed breakdown of the above points]
@@ -123,7 +108,7 @@
                         parts: [{ text: prompt }]
                     }]
                 };
-                const apiKey = ""; // The canvas environment will provide this API key
+                const apiKey = ""; 
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
                 const fetchFunc = () => fetch(apiUrl, {
@@ -166,5 +151,4 @@
         }
     </script>
 </body>
-</html>
-                    
+    </html>
