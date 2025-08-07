@@ -44,12 +44,15 @@ app.post('/analyze', async (req, res) => {
                 * Tactical style: Describe the plausible tactical style of each team.
                 * Motivation: Describe the plausible motivation level for each team.
                 * Rest period: Assume a standard rest period (e.g., 7 days).
-
+            * **Betting Odds from Top 10 Bookmakers:**
+                 *Historical Odds (last 5 matches):  Describe win draw lost odds for each match.
+                 *Pre-match Odds: Describe odds for win draw lost for upcoming match.
+                 
         3.  **Synthesize the Data and Formulate a Prediction:**
             * Compare the strengths and weaknesses of each team.
             * Identify which team has the tactical advantage.
             * Consider any potential upsets or unexpected factors.
-            * Provide a final prediction, including a most likely scoreline and a confidence level for your prediction (e.g., High, Medium, Low).
+            * Provide a final prediction, betting recommendation including a most likely scoreline and a confidence level for your prediction (e.g., High, Medium, Low).
 
         4.  **Structure the Final Output:**
             * Provide your response in a single JSON object.
@@ -149,4 +152,5 @@ app.post('/analyze', async (req, res) => {
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
 });
-                                         
+
+                    
