@@ -24,123 +24,99 @@ app.post('/analyze', async (req, res) => {
 
     // This is the detailed prompt for the Gemini API, combining user instructions with dynamic data
     const prompt = `
-        Act as an expert sports analyst and betting strategist, provide a detailed betting recommendation for a specific football match. Your analysis must be data-driven, considering a wide range of factors, and your final recommendation must include a suggested bet type and stake level.
+        Act as a professional football match analyst and sports betting expert. Your task is to analyze and predict the outcome of an upcoming football fixture, with a specific focus on providing a precise and actionable betting recommendation. To do this, you must follow these steps:
 
+        1.  **Identify the Teams and Match Details:**
+            * Home Team: ${homeTeam}
+            * Away Team: ${awayTeam}
+            * Assume a future match date, a neutral venue, and that this is a league fixture.
 
+        2.  **Gather and Analyze Key Variables for Both Teams:**
+            * **Performance Metrics:**
+                * Recent Form (last 5 matches): Generate plausible form based on team reputation and current standings. Describe this using a W-D-L (Win-Draw-Loss) format.
+                * Home and Away Records: Generate plausible records (e.g., "3 wins, 1 draw, 1 loss").
+                * Head-to-head record: Generate a plausible head-to-head record. Specify the results of the last 5 encounters.
+                * Key offensive and defensive stats: Generate plausible stats such as goals scored per game, goals conceded per game, clean sheets, and average possession.
+            * **Player Information:**
+                * Significant injuries or suspensions: Generate plausible key player absences and describe their likely impact on the team's performance.
+                * Key players in form: Identify plausible in-form players and their contributions (e.g., goals, assists).
+            * **Contextual Factors:**
+                * Tactical style: Describe the plausible tactical style of each team (e.g., "Possession-based, attacking football" or "Defensive, counter-attacking").
+                * Motivation: Describe the plausible motivation level for each team (e.g., "Fighting for a top 4 spot" or "Safe in mid-table with little to play for").
+                * Rest period: Assume a standard rest period (e.g., 7 days).
+            * **Betting Odds from Top 10 Bookmakers:**
+                * Historical Odds (last 5 matches): Describe plausible win, draw, loss odds for each match, noting any significant discrepancies or value bets.
+                * Pre-match Odds: Generate plausible odds for win, draw, and loss for the upcoming match.
 
-**Match Details:**
+        3.  **Synthesize the Data and Formulate a Precise Betting Recommendation:**
+            * **Comparison:** Compare the strengths and weaknesses of each team, focusing on statistical advantages (e.g., "Team A's high scoring rate versus Team B's poor defensive record").
+            * **Tactical Advantage:** Identify which team has the tactical advantage and explain why based on the styles of play.
+            * **Value Assessment:** Identify where the most betting value lies. Is the favorite over-priced or is there a good chance of an upset?
+            * **Betting Market Analysis:** Go beyond just the final outcome. Consider other markets such as:
+                * Over/Under Goals (e.g., Over 2.5 goals)
+                * Both Teams to Score (BTTS)
+                * Correct Score
+                * Handicap Betting
+            * **Final Prediction and Confidence:** Provide a final prediction, a most likely scoreline, and a confidence level (e.g., High, Medium, Low) for the core outcome.
 
-* **League:** [e.g., Premier League, La Liga, Champions League]
+        4.  **Structure the Final Output:**
+            * Provide your response in a single JSON object. The 'summary' field should be a concise overview of your betting thesis. The 'conclusion' should summarize the recommended bet and its rationale.
+    `;
 
-* **Match Importance:** [e.g., Title Decider, Relegation Battle, Rivalry Match, Mid-table Clash]
-
-* **Home Team:** [Home Team Name]
-
-* **Away Team:** [Away Team Name]
-
-
-
-**Data to Analyze:**
-
-* **Team Form:** Recent performance (e.g., W-D-L record over the last 5 matches) for both teams, including home/away form.
-
-* **Player Data:**
-
-    * **Key Player Form:** Identify and analyze the performance of key players in both teams who are in good form.
-
-    * **Injuries/Suspensions:** List any key players who are confirmed to be injured or suspended.
-
-    * **Likely Starting XI:** Provide a predicted starting lineup for both teams.
-
-* **Betting Market Analysis:**
-
-    * **Pre-match Odds:** Analyze the initial and current betting odds from multiple sources.
-
-    * **Line Movement:** Describe how the odds have changed over time and what this suggests about market sentiment.
-
-    * **Specific Markets:** Analyze specific markets like "Over/Under Goals" and "Both Teams to Score."
-
-* **Key Narratives:** Identify and analyze any external factors or narratives surrounding the match (e.g., a new coach, a team's winning streak, a major rivalry).
-
-
-
-**Betting Strategy & Recommendation:**
-
-* **Betting Recommendation:** Based on your analysis, provide a specific betting recommendation (e.g., "Home Team to Win," "Over 2.5 Goals," "Both Teams to Score - Yes").
-
-* **Stake Level:** Assign a confidence level to your recommendation using a stake level (e.g., "Small," "Medium," "Large").
-
-* **Justification:** Provide a clear, step-by-step justification for your recommendation, highlighting the most important factors that led to your decision.
-
-
-
-**Output Format:**
-
-Present the final analysis in a structured JSON object with the following schema:
-
-json
-
-{
-
-  "leagueName": "string",
-
-  "matchImportance": "string",
-
-  "homeTeam": "string",
-
-  "awayTeam": "string",
-
-  "analysis": {
-
-    "teamForm": {
-
-      "homeTeam": "string",
-
-      "awayTeam": "string"
-
-    },
-
-    "playerData": {
-
-      "keyPlayerForm": "string",
-
-      "injuriesOrSuspensions": "string",
-
-      "likelyStartingXI": {
-
-        "homeTeam": "string",
-
-        "awayTeam": "string"
-
-      }
-
-    },
-
-    "bettingMarketAnalysis": {
-
-      "preMatchOdds": "string",
-
-      "lineMovement": "string",
-
-      "specificMarkets": "string"
-
-    },
-
-    "keyNarratives": "string"
-
-  },
-
-  "bettingRecommendation": {
-
-    "betType": "string",
-
-    "stakeLevel": "string",
-
-    "justification": "string"
-
-  }
-
-};
+    // JSON schema for the desired response
+    const jsonSchema = {
+        type: "OBJECT",
+        properties: {
+            summary: {
+                type: "STRING"
+            },
+            analysis: {
+                type: "OBJECT",
+                properties: {
+                    homeTeam: {
+                        type: "OBJECT",
+                        properties: {
+                            teamName: { type: "STRING" },
+                            recentForm: { type: "STRING" },
+                            homeRecord: { type: "STRING" },
+                            keyPlayers: { type: "ARRAY", items: { type: "STRING" } },
+                            tacticalStyle: { type: "STRING" },
+                            motivation: { type: "STRING" }
+                        }
+                    },
+                    awayTeam: {
+                        type: "OBJECT",
+                        properties: {
+                            teamName: { type: "STRING" },
+                            recentForm: { type: "STRING" },
+                            awayRecord: { type: "STRING" },
+                            keyPlayers: { type: "ARRAY", items: { type: "STRING" } },
+                            tacticalStyle: { type: "STRING" },
+                            motivation: { type: "STRING" }
+                        }
+                    },
+                    headToHead: {
+                        type: "STRING"
+                    },
+                    injuriesAndSuspensions: {
+                        type: "STRING"
+                    }
+                }
+            },
+            prediction: {
+                type: "OBJECT",
+                properties: {
+                    outcome: { type: "STRING" },
+                    scoreline: { type: "STRING" },
+                    confidence: { type: "STRING" }
+                }
+            },
+            conclusion: {
+                type: "STRING"
+            }
+        },
+        "propertyOrdering": ["summary", "analysis", "prediction", "conclusion"]
+    };
 
     const payload = {
         contents: [{
@@ -181,5 +157,3 @@ json
 app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
 });
-
-                    
