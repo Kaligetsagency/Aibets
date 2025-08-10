@@ -78,7 +78,7 @@ app.post('/analyze', async (req, res) => {
 
 Present the final analysis in a structured JSON object with the following schema:
 
-```json
+json
 
 {
 
