@@ -24,94 +24,123 @@ app.post('/analyze', async (req, res) => {
 
     // This is the detailed prompt for the Gemini API, combining user instructions with dynamic data
     const prompt = `
-        Act as a professional football match analyst. Your task is to analyze and predict the outcome of an upcoming football fixture. To do this, you must follow these steps:
+        Act as an expert sports analyst and betting strategist, provide a detailed betting recommendation for a specific football match. Your analysis must be data-driven, considering a wide range of factors, and your final recommendation must include a suggested bet type and stake level.
 
-        1.  **Identify the Teams and Match Details:**
-            * Home Team: ${homeTeam}
-            * Away Team: ${awayTeam}
-            * Assume a future match date, a neutral venue, and that this is a league fixture.
 
-        2.  **Gather and Analyze Key Variables for Both Teams:**
-            * **Performance Metrics:**
-                * Recent Form (last 5 matches): Generate plausible form based on team reputation and current standings.
-                * Home and Away Records: Generate plausible records.
-                * Head-to-head record: Generate a plausible head-to-head record.
-                * Key offensive and defensive stats (e.g., goals scored/conceded): Generate plausible stats.
-            * **Player Information:**
-                * Significant injuries or suspensions: Generate plausible key player absences.
-                * Key players in form: Identify plausible in-form players.
-            * **Contextual Factors:**
-                * Tactical style: Describe the plausible tactical style of each team.
-                * Motivation: Describe the plausible motivation level for each team.
-                * Rest period: Assume a standard rest period (e.g., 7 days).
-            * **Betting Odds from Top 10 Bookmakers:**
-                 *Historical Odds (last 5 matches):  Describe win draw lost odds for each match.
-                 *Pre-match Odds: Describe odds for win draw lost for upcoming match.
-                 
-        3.  **Synthesize the Data and Formulate a Prediction:**
-            * Compare the strengths and weaknesses of each team.
-            * Identify which team has the tactical advantage.
-            * Consider any potential upsets or unexpected factors.
-            * Provide a final prediction, betting recommendation including a most likely scoreline and a confidence level for your prediction (e.g., High, Medium, Low).
 
-        4.  **Structure the Final Output:**
-            * Provide your response in a single JSON object.
-    `;
+**Match Details:**
 
-    // JSON schema for the desired response
-    const jsonSchema = {
-        type: "OBJECT",
-        properties: {
-            summary: {
-                type: "STRING"
-            },
-            analysis: {
-                type: "OBJECT",
-                properties: {
-                    homeTeam: {
-                        type: "OBJECT",
-                        properties: {
-                            teamName: { type: "STRING" },
-                            recentForm: { type: "STRING" },
-                            homeRecord: { type: "STRING" },
-                            keyPlayers: { type: "ARRAY", items: { type: "STRING" } },
-                            tacticalStyle: { type: "STRING" },
-                            motivation: { type: "STRING" }
-                        }
-                    },
-                    awayTeam: {
-                        type: "OBJECT",
-                        properties: {
-                            teamName: { type: "STRING" },
-                            recentForm: { type: "STRING" },
-                            awayRecord: { type: "STRING" },
-                            keyPlayers: { type: "ARRAY", items: { type: "STRING" } },
-                            tacticalStyle: { type: "STRING" },
-                            motivation: { type: "STRING" }
-                        }
-                    },
-                    headToHead: {
-                        type: "STRING"
-                    },
-                    injuriesAndSuspensions: {
-                        type: "STRING"
-                    }
-                }
-            },
-            prediction: {
-                type: "OBJECT",
-                properties: {
-                    outcome: { type: "STRING" },
-                    scoreline: { type: "STRING" },
-                    confidence: { type: "STRING" }
-                }
-            },
-            conclusion: {
-                type: "STRING"
-            }
-        },
-        "propertyOrdering": ["summary", "analysis", "prediction", "conclusion"]
-    };
+* **League:** [e.g., Premier League, La Liga, Champions League]
+
+* **Match Importance:** [e.g., Title Decider, Relegation Battle, Rivalry Match, Mid-table Clash]
+
+* **Home Team:** [Home Team Name]
+
+* **Away Team:** [Away Team Name]
+
+
+
+**Data to Analyze:**
+
+* **Team Form:** Recent performance (e.g., W-D-L record over the last 5 matches) for both teams, including home/away form.
+
+* **Player Data:**
+
+    * **Key Player Form:** Identify and analyze the performance of key players in both teams who are in good form.
+
+    * **Injuries/Suspensions:** List any key players who are confirmed to be injured or suspended.
+
+    * **Likely Starting XI:** Provide a predicted starting lineup for both teams.
+
+* **Betting Market Analysis:**
+
+    * **Pre-match Odds:** Analyze the initial and current betting odds from multiple sources.
+
+    * **Line Movement:** Describe how the odds have changed over time and what this suggests about market sentiment.
+
+    * **Specific Markets:** Analyze specific markets like "Over/Under Goals" and "Both Teams to Score."
+
+* **Key Narratives:** Identify and analyze any external factors or narratives surrounding the match (e.g., a new coach, a team's winning streak, a major rivalry).
+
+
+
+**Betting Strategy & Recommendation:**
+
+* **Betting Recommendation:** Based on your analysis, provide a specific betting recommendation (e.g., "Home Team to Win," "Over 2.5 Goals," "Both Teams to Score - Yes").
+
+* **Stake Level:** Assign a confidence level to your recommendation using a stake level (e.g., "Small," "Medium," "Large").
+
+* **Justification:** Provide a clear, step-by-step justification for your recommendation, highlighting the most important factors that led to your decision.
+
+
+
+**Output Format:**
+
+Present the final analysis in a structured JSON object with the following schema:
+
+```json
+
+{
+
+  "leagueName": "string",
+
+  "matchImportance": "string",
+
+  "homeTeam": "string",
+
+  "awayTeam": "string",
+
+  "analysis": {
+
+    "teamForm": {
+
+      "homeTeam": "string",
+
+      "awayTeam": "string"
+
+    },
+
+    "playerData": {
+
+      "keyPlayerForm": "string",
+
+      "injuriesOrSuspensions": "string",
+
+      "likelyStartingXI": {
+
+        "homeTeam": "string",
+
+        "awayTeam": "string"
+
+      }
+
+    },
+
+    "bettingMarketAnalysis": {
+
+      "preMatchOdds": "string",
+
+      "lineMovement": "string",
+
+      "specificMarkets": "string"
+
+    },
+
+    "keyNarratives": "string"
+
+  },
+
+  "bettingRecommendation": {
+
+    "betType": "string",
+
+    "stakeLevel": "string",
+
+    "justification": "string"
+
+  }
+
+};
 
     const payload = {
         contents: [{
