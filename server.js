@@ -26,30 +26,29 @@ app.post('/analyze', async (req, res) => {
     const prompt = `
         Act as a professional football match analyst and sports betting expert. Your task is to analyze and predict the outcome of an upcoming football fixture, with a specific focus on providing a precise and actionable betting recommendation. To do this, you must follow these steps:
 
-        1.  **Identify the Teams and Match Details:**
+        1.  **Identify the Teams and Match Details from live data:**
             * Home Team: ${homeTeam}
             * Away Team: ${awayTeam}
-            * Assume a future match date, a neutral venue, and that this is a league fixture.
+            * Search for the actual date, time, venue, and competition type of the upcoming match. Do not make any assumptions.
 
-        2.  **Gather and Analyze Key Variables for Both Teams:**
+        2.  **Gather and Analyze Key Variables for Both Teams from live data:**
             * **Performance Metrics:**
-                * Recent Form (last 5 matches): Generate plausible form based on team reputation and current standings. Describe this using a W-D-L (Win-Draw-Loss) format.
-                * Home and Away Records: Generate plausible records (e.g., "3 wins, 1 draw, 1 loss").
-                * Head-to-head record: Generate a plausible head-to-head record. Specify the results of the last 5 encounters.
-                * Key offensive and defensive stats: Generate plausible stats such as goals scored per game, goals conceded per game, clean sheets, and average possession.
+                * **Recent Form (last 5 matches):** Search for the actual recent form (Win-Draw-Loss) for both teams in their last five matches.
+                * **Home and Away Records:** Search for the actual home record of the home team and the away record of the away team.
+                * **Head-to-head record:** Search for the actual head-to-head record between the two teams, including the results of their last five encounters.
+                * **Key offensive and defensive stats:** Search for real stats such as goals scored per game, goals conceded per game, clean sheets, and average possession for both teams.
             * **Player Information:**
-                * Significant injuries or suspensions: Generate plausible key player absences and describe their likely impact on the team's performance.
-                * Key players in form: Identify plausible in-form players and their contributions (e.g., goals, assists).
+                * **Significant injuries or suspensions:** Search for any real and confirmed key player absences for the upcoming match and describe their likely impact.
+                * **Key players in form:** Identify real in-form players and their actual contributions (e.g., goals, assists).
             * **Contextual Factors:**
-                * Tactical style: Describe the plausible tactical style of each team (e.g., "Possession-based, attacking football" or "Defensive, counter-attacking").
-                * Motivation: Describe the plausible motivation level for each team (e.g., "Fighting for a top 4 spot" or "Safe in mid-table with little to play for").
-                * Rest period: Assume a standard rest period (e.g., 7 days).
+                * **Tactical style:** Describe the tactical style of each team based on their recent performances and coaching strategy.
+                * **Motivation:** Search for the current league standings, cup implications, or other factors that would influence each team's motivation.
+                * **Rest period:** Search for the date of the teams' last matches to determine the actual rest period.
             * **Betting Odds from Top 10 Bookmakers:**
-                * Historical Odds (last 5 matches): Describe plausible win, draw, loss odds for each match, noting any significant discrepancies or value bets.
-                * Pre-match Odds: Generate plausible odds for win, draw, and loss for the upcoming match.
+                * **Pre-match Odds:** Search for the latest odds for win, draw, and loss from reputable bookmakers for the upcoming match.
 
         3.  **Synthesize the Data and Formulate a Precise Betting Recommendation:**
-            * **Comparison:** Compare the strengths and weaknesses of each team, focusing on statistical advantages (e.g., "Team A's high scoring rate versus Team B's poor defensive record").
+            * **Comparison:** Compare the strengths and weaknesses of each team using the live statistical data, focusing on statistical advantages (e.g., "Team A's high scoring rate versus Team B's poor defensive record").
             * **Tactical Advantage:** Identify which team has the tactical advantage and explain why based on the styles of play.
             * **Value Assessment:** Identify where the most betting value lies. Is the favorite over-priced or is there a good chance of an upset?
             * **Betting Market Analysis:** Go beyond just the final outcome. Consider other markets such as:
