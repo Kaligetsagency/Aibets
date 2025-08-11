@@ -16,7 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
         resultJson.textContent = '';
 
         try {
-            const response = await fetch('http://localhost:3000/analyze', {
+            // Updated fetch call to use the same host as the front-end
+            const response = await fetch('/analyze', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -25,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({ error: 'Unknown server error.' }));
                 throw new Error(error.error || 'Something went wrong with the server.');
             }
 
@@ -35,7 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Error:', error);
-            resultJson.textContent = `Error: ${error.message}`;
+            // Display a more user-friendly error message
+            resultJson.textContent = `Error: ${error.message}. Please check if the server is running and the entered team names are valid.`;
             resultDiv.classList.remove('hidden');
         } finally {
             // Hide loading spinner
