@@ -4,36 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Football Match Analyst</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-100 font-inter antialiased">
-
-    <div class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-2xl text-center">
-            <h1 class="text-4xl font-bold text-gray-800 mb-6">Football Match Analyst</h1>
-            <p class="text-gray-600 mb-8">Enter two teams to get a detailed prediction powered by Ai.</p>
-
-            <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-8">
-                <input type="text" id="homeTeamInput" placeholder="Home Team (e.g., Man City)" class="flex-1 p-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
-                <span class="text-xl font-bold text-gray-500 hidden md:block">vs</span>
-                <input type="text" id="awayTeamInput" placeholder="Away Team (e.g., Liverpool)" class="flex-1 p-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+<body>
+    <div class="container">
+        <h1>Football Match Analyst</h1>
+        <p>Enter two football teams to get a detailed match analysis and betting prediction.</p>
+        <form id="analysis-form">
+            <div class="input-group">
+                <label for="homeTeam">Home Team:</label>
+                <input type="text" id="homeTeam" required>
             </div>
-
-            <button id="analyzeButton" class="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300 transform active:scale-95">
-                Analyze Match
-            </button>
-            <div id="loadingIndicator" class="hidden mt-4 text-blue-600 font-medium">Analyzing...</div>
-
-            <div id="results" class="mt-10 text-left hidden">
-                <h2 class="text-3xl font-bold text-gray-800 mb-4">Analysis & Prediction</h2>
-                <div id="summary" class="bg-gray-50 p-4 rounded-xl mb-6"></div>
-                <div id="analysis-container"></div>
-                <div id="prediction" class="mt-6 p-4 bg-blue-50 rounded-xl border-l-4 border-blue-400"></div>
+            <div class="input-group">
+                <label for="awayTeam">Away Team:</label>
+                <input type="text" id="awayTeam" required>
             </div>
+            <button type="submit">Analyze Match</button>
+        </form>
 
-            <div id="error-message" class="hidden mt-6 text-red-600 font-bold"></div>
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>Analyzing the match...</p>
+        </div>
+
+        <div id="result" class="hidden">
+            <h2>Analysis Results</h2>
+            <pre id="result-json"></pre>
         </div>
     </div>
 
