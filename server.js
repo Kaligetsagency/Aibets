@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const fetch = require('node-fetch'); // Make sure you have this dependency installed: npm install node-fetch
 require('dotenv').config();
 
 const app = express();
@@ -22,44 +23,22 @@ app.post('/analyze', async (req, res) => {
         return res.status(400).json({ error: 'Please provide both home and away team names.' });
     }
 
-    // This is the detailed prompt for the Gemini API, combining user instructions with dynamic data
+    // A prompt to instruct the model on its role
     const prompt = `
-        Act as a professional football match analyst and sports betting expert. Your task is to analyze and predict the outcome of an upcoming football fixture, with a specific focus on providing a precise and actionable betting recommendation. To do this, you must follow these steps:
+        You are a football match analyst and sports betting expert. Your task is to provide a detailed analysis and a betting recommendation for an upcoming match between ${homeTeam} and ${awayTeam}.
 
-        1.  **Identify the Teams and Match Details from live data:**
-            * Home Team: ${homeTeam}
-            * Away Team: ${awayTeam}
-            * Make sure you search and describe for the actual date, time, venue, and competition type of the upcoming match. Make sure you do not make any assumptions.
+        Use your tools to find the following information:
+        - The actual date, time, venue, and competition of the upcoming match.
+        - The recent form (W-D-L) of both teams in their last five matches.
+        - The home record of ${homeTeam} and the away record of ${awayTeam}.
+        - The head-to-head record between the two teams, including the results of their last five encounters.
+        - Key offensive and defensive stats, such as goals scored, goals conceded, and clean sheets per game.
+        - Any confirmed key player injuries or suspensions.
+        - The latest betting odds for win, draw, and loss from reputable bookmakers.
 
-        2.  **Gather and Analyze Key Variables for Both Teams from live data:**
-            * **Performance Metrics:**
-                * **Recent Form (last 5 matches):** Make sure you search for the actual recent form (Win-Draw-Loss) for both teams in their last five matches.
-                * **Home and Away Records:** Make sure you search for the actual home record of the home team and the away record of the away team.
-                * **Head-to-head record:** Make sure you search for the actual head-to-head record between the two teams, including the results of their last five encounters.
-                * **Key offensive and defensive stats:** Make sure you search for real stats such as goals scored per game, goals conceded per game, clean sheets, and average possession for both teams.
-            * **Player Information:**
-                * **Significant injuries or suspensions:** Make sure you search for any real and confirmed key player absences for the upcoming match and describe their likely impact.
-                * **Key players in form:** Make sure you identify real in-form players and their actual contributions (e.g., goals, assists).
-            * **Contextual Factors:**
-                * **Tactical style:** Make sure you describe the actual tactical style of each team based on their recent performances and coaching strategy.
-                * **Motivation:** Make sure you search for the actual current league standings, cup implications, or other factors that would influence each team's motivation.
-                * **Rest period:** Make sure you search for the actual date of the teams' last matches to determine the actual rest period.
-            * **Betting Odds from Top 10 Bookmakers:**
-                * **Pre-match Odds:** Make sure you search for the actual latest odds for win, draw, and loss from 10 reputable bookmakers for the upcoming match.
+        After gathering this information, synthesize the data and provide a precise betting recommendation. Consider markets like Over/Under Goals, Both Teams to Score (BTTS), and Handicap Betting.
 
-        3.  **Synthesize the Data and Formulate a Precise Betting Recommendation:**
-            * **Comparison:** Compare the strengths and weaknesses of each team using the live statistical data, focusing on statistical advantages (e.g., "Team A's high scoring rate versus Team B's poor defensive record").
-            * **Tactical Advantage:** Identify which team has the tactical advantage and explain why based on the styles of play.
-            * **Value Assessment:** Identify where the most betting value lies. Is the favorite over-priced or is there a good chance of an upset?
-            * **Betting Market Analysis:** Go beyond just the final outcome. Consider other markets such as:
-                * Over/Under Goals (e.g., Over 2.5 goals)
-                * Both Teams to Score (BTTS)
-                * Correct Score
-                * Handicap Betting
-            * **Final Prediction and Confidence:** Provide a final prediction, a most likely scoreline, and a confidence level (e.g., High, Medium, Low) for the core outcome.
-
-        4.  **Structure the Final Output:**
-            * Provide your response in a single JSON object. The 'summary' field should be a concise overview of your betting thesis. The 'conclusion' should summarize the recommended bet and its rationale.
+        Conclude with a final prediction, a most likely scoreline, and a confidence level (e.g., High, Medium, Low). The final output should be a single JSON object.
     `;
 
     // JSON schema for the desired response
@@ -67,7 +46,8 @@ app.post('/analyze', async (req, res) => {
         type: "OBJECT",
         properties: {
             summary: {
-                type: "STRING"
+                type: "STRING",
+                description: "A concise overview of the betting thesis."
             },
             analysis: {
                 type: "OBJECT",
@@ -111,17 +91,42 @@ app.post('/analyze', async (req, res) => {
                 }
             },
             conclusion: {
-                type: "STRING"
+                type: "STRING",
+                description: "A summary of the recommended bet and its rationale."
             }
         },
         "propertyOrdering": ["summary", "analysis", "prediction", "conclusion"]
     };
+
+    const tools = [
+        {
+            functionDeclarations: [
+                {
+                    name: "search",
+                    description: "Search Google for information.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            queries: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "STRING"
+                                }
+                            }
+                        },
+                        required: ["queries"]
+                    }
+                }
+            ]
+        }
+    ];
 
     const payload = {
         contents: [{
             role: "user",
             parts: [{ text: prompt }]
         }],
+        tools: tools,
         generationConfig: {
             responseMimeType: "application/json",
             responseSchema: jsonSchema
@@ -129,7 +134,7 @@ app.post('/analyze', async (req, res) => {
     };
 
     try {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -138,15 +143,28 @@ app.post('/analyze', async (req, res) => {
         });
 
         const result = await response.json();
-        if (result.candidates && result.candidates.length > 0 &&
-            result.candidates[0].content && result.candidates[0].content.parts &&
-            result.candidates[0].content.parts.length > 0) {
-            const jsonText = result.candidates[0].content.parts[0].text;
-            const parsedJson = JSON.parse(jsonText);
-            res.json(parsedJson);
+        
+        if (result.candidates && result.candidates.length > 0) {
+            const candidate = result.candidates[0];
+            if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+                const jsonText = candidate.content.parts[0].text;
+                try {
+                    const parsedJson = JSON.parse(jsonText);
+                    res.json(parsedJson);
+                } catch (jsonError) {
+                    // This handles cases where the model might not return valid JSON directly
+                    console.error('Failed to parse JSON from API response:', jsonError);
+                    res.status(500).json({ error: 'Failed to parse JSON from the API response.' });
+                }
+            } else {
+                res.status(500).json({ error: 'Unexpected API response structure or empty content.' });
+            }
+        } else if (result.error) {
+            res.status(result.error.code || 500).json({ error: result.error.message });
         } else {
-            res.status(500).json({ error: 'Unexpected API response structure.' });
+            res.status(500).json({ error: 'Unexpected API response.' });
         }
+
     } catch (error) {
         console.error('Error during API call:', error);
         res.status(500).json({ error: 'Failed to get prediction from the API.' });
