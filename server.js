@@ -29,7 +29,7 @@ app.post('/analyze', async (req, res) => {
         1.  **Identify the Teams and Match Details from live data:**
             * Home Team: ${homeTeam}
             * Away Team: ${awayTeam}
-            * Search for the actual date, time, venue, and competition type of the upcoming match. Make sure you do not make any assumptions.
+            * Make sure you search and describe for the actual date, time, venue, and competition type of the upcoming match. Make sure you do not make any assumptions.
 
         2.  **Gather and Analyze Key Variables for Both Teams from live data:**
             * **Performance Metrics:**
