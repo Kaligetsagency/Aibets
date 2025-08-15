@@ -1,47 +1,41 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('analysis-form');
-    const resultDiv = document.getElementById('result');
-    const resultJson = document.getElementById('result-json');
+document.getElementById('upload-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const fileInput = document.getElementById('match-file');
     const loadingDiv = document.getElementById('loading');
+    const resultDiv = document.getElementById('analysis-result');
+    const contentPre = document.getElementById('analysis-content');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    if (fileInput.files.length === 0) {
+        alert('Please select a file to upload.');
+        return;
+    }
 
-        const homeTeam = document.getElementById('homeTeam').value;
-        const awayTeam = document.getElementById('awayTeam').value;
+    loadingDiv.classList.remove('hidden');
+    resultDiv.classList.add('hidden');
 
-        // Show loading spinner
-        loadingDiv.classList.remove('hidden');
-        resultDiv.classList.add('hidden');
-        resultJson.textContent = '';
+    const formData = new FormData();
+    formData.append('matchFile', fileInput.files[0]);
 
-        try {
-            // Updated fetch call to use the same host as the front-end
-            const response = await fetch('/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ homeTeam, awayTeam })
-            });
+    try {
+        const response = await fetch('/analyze', {
+            method: 'POST',
+            body: formData,
+        });
 
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({ error: 'Unknown server error.' }));
-                throw new Error(error.error || 'Something went wrong with the server.');
-            }
-
-            const data = await response.json();
-            resultJson.textContent = JSON.stringify(data, null, 2);
-            resultDiv.classList.remove('hidden');
-
-        } catch (error) {
-            console.error('Error:', error);
-            // Display a more user-friendly error message
-            resultJson.textContent = `Error: ${error.message}. Please check if the server is running and the entered team names are valid.`;
-            resultDiv.classList.remove('hidden');
-        } finally {
-            // Hide loading spinner
-            loadingDiv.classList.add('hidden');
+        if (!response.ok) {
+            throw new Error('Failed to get analysis from the server.');
         }
-    });
+
+        const data = await response.json();
+        contentPre.textContent = data.analysis;
+        resultDiv.classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('An error occurred during the analysis. Please try again.');
+    } finally {
+        loadingDiv.classList.add('hidden');
+    }
 });
+                                                        
