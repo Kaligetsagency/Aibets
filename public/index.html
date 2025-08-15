@@ -3,36 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Match Analyst</title>
+    <title>Football Match Analysis</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Football Match Analyst</h1>
-        <p>Enter two football teams to get a detailed match analysis and betting prediction.</p>
-        <form id="analysis-form">
-            <div class="input-group">
-                <label for="homeTeam">Home Team:</label>
-                <input type="text" id="homeTeam" required>
-            </div>
-            <div class="input-group">
-                <label for="awayTeam">Away Team:</label>
-                <input type="text" id="awayTeam" required>
-            </div>
-            <button type="submit">Analyze Match</button>
+        <h1>Football Match Analysis</h1>
+        <p>Upload a file with upcoming matches to get a detailed analysis and betting recommendations.</p>
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="file" id="match-file" name="matchFile" accept=".txt,.html,.csv" required>
+            <button type="submit">Analyze</button>
         </form>
-
         <div id="loading" class="hidden">
             <div class="spinner"></div>
-            <p>Analyzing the match...</p>
+            <p>Analyzing... Please wait.</p>
         </div>
-
-        <div id="result" class="hidden">
-            <h2>Analysis Results</h2>
-            <pre id="result-json"></pre>
+        <div id="analysis-result" class="hidden">
+            <h2>Analysis Result</h2>
+            <pre id="analysis-content"></pre>
         </div>
     </div>
-
     <script src="script.js"></script>
 </body>
 </html>
