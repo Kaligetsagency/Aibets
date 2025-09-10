@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Match Analysis</title>
+    <title>Match Winner Analyzer</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Football Match Analysis</h1>
-        <p>Upload a file with upcoming matches to get a detailed analysis and betting recommendations.</p>
-        <form id="upload-form" enctype="multipart/form-data">
-            <input type="file" id="match-file" name="matchFile" accept=".txt,.html,.csv" required>
-            <button type="submit">Analyze</button>
-        </form>
+        <h1>Match Winner Analyzer</h1>
+        <p>Upload a text file with a list of matches and click "Find Winners" to get the results.</p>
+        <div class="upload-area">
+            <input type="file" id="matchesFile" accept=".txt">
+            <button id="analyzeButton">Find Winners</button>
+        </div>
         <div id="loading" class="hidden">
             <div class="spinner"></div>
-            <p>Analyzing... Please wait.</p>
+            <p>Analyzing matches, please wait...</p>
         </div>
-        <div id="analysis-result" class="hidden">
-            <h2>Analysis Result</h2>
-            <pre id="analysis-content"></pre>
+        <div id="results" class="hidden">
+            <h2>Results</h2>
+            <pre id="resultsText"></pre>
         </div>
     </div>
     <script src="script.js"></script>
