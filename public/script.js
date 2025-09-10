@@ -1,21 +1,22 @@
-document.getElementById('upload-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const fileInput = document.getElementById('match-file');
+document.getElementById('analyzeButton').addEventListener('click', async () => {
+    const fileInput = document.getElementById('matchesFile');
+    const file = fileInput.files[0];
+    const resultsDiv = document.getElementById('results');
+    const resultsText = document.getElementById('resultsText');
     const loadingDiv = document.getElementById('loading');
-    const resultDiv = document.getElementById('analysis-result');
-    const contentPre = document.getElementById('analysis-content');
 
-    if (fileInput.files.length === 0) {
-        alert('Please select a file to upload.');
+    if (!file) {
+        alert('Please select a file first.');
         return;
     }
 
-    loadingDiv.classList.remove('hidden');
-    resultDiv.classList.add('hidden');
-
     const formData = new FormData();
-    formData.append('matchFile', fileInput.files[0]);
+    formData.append('matchesFile', file);
+
+    // Show loading indicator and hide previous results
+    loadingDiv.classList.remove('hidden');
+    resultsDiv.classList.add('hidden');
+    resultsText.textContent = '';
 
     try {
         const response = await fetch('/analyze', {
@@ -23,19 +24,18 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
             body: formData,
         });
 
-        if (!response.ok) {
-            throw new Error('Failed to get analysis from the server.');
-        }
-
         const data = await response.json();
-        contentPre.textContent = data.analysis;
-        resultDiv.classList.remove('hidden');
 
+        if (response.ok) {
+            resultsText.textContent = data.result;
+        } else {
+            resultsText.textContent = `Error: ${data.error}`;
+        }
     } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred during the analysis. Please try again.');
+        resultsText.textContent = `An unexpected error occurred: ${error.message}`;
     } finally {
+        // Hide loading indicator and show results
         loadingDiv.classList.add('hidden');
+        resultsDiv.classList.remove('hidden');
     }
 });
-                                                        
