@@ -123,20 +123,19 @@ function getHistoricalOHLC(symbol, timeframe) {
 async function analyzeWithGemini(data, timeframe) {
     const dataPrompt = data.map(tick => `Time: ${tick.time}, Open: ${tick.open}, High: ${tick.high}, Low: ${tick.low}, Close: ${tick.close}`).join('\n');
     
+    // Updated prompt to specifically request ICT analysis
     const userPrompt = `
-        You are a seasoned financial analyst. Analyze the provided candlestick market data for an asset from the Deriv platform, with a timeframe of ${timeframe}.
+        You are a seasoned financial analyst specializing in Inner Circle Trader (ICT) concepts. Analyze the provided candlestick market data for an asset from the Deriv platform, with a timeframe of ${timeframe}.
         
-        **Part 1: In-depth Technical Analysis**
-        * **Identify Liquidity:** Identify key areas of buyside liquidity (above old highs) and sellside liquidity (below old lows). Explain what the potential "smart money" objective might be for these zones.
-        * **Fair Value Gaps (FVG):** Identify any unmitigated fair value gaps and their significance.
-        * **Order Blocks:** Identify any valid order blocks. A valid order block must be untouched, have an imbalance, and lead to a break in market structure.
-        * **Price Action Narrative:** Analyze the recent price action to determine if it fits the "Power of Three" pattern (consolidation, manipulation, and acceleration).
+        Using ICT methodologies, identify and explain the following elements:
+        - **Buyside and Sellside Liquidity:** Identify key areas of liquidity that could be targeted by "smart money".
+        - **Fair Value Gaps (FVG):** Pinpoint any unmitigated fair value gaps and explain their significance.
+        - **Order Blocks:** Identify valid order blocks and their role in the current price action.
         
-        **Part 2: Conclusive Trade Recommendation**
-        * Synthesize your findings from the technical analysis to provide a comprehensive narrative of the market's current state.
-        * Based on this confluence, provide a potential future direction for the price.
-        * Provide a specific trade recommendation with clear entry, take profit (TP), and stop loss (SL) prices.
-
+        Based on the confluence of these factors, provide a concise summary of the market's current state and a specific trade recommendation.
+        
+        Provide your analysis in the following JSON format. If no clear instance of an ICT element is found, you can state so in the corresponding field.
+        
         ---
         Market Data:
         ${dataPrompt}
@@ -152,6 +151,10 @@ async function analyzeWithGemini(data, timeframe) {
                 type: "OBJECT",
                 properties: {
                     analysis: { type: "STRING" },
+                    buysideLiquidity: { type: "STRING" },
+                    sellsideLiquidity: { type: "STRING" },
+                    fairValueGaps: { type: "STRING" },
+                    orderBlocks: { type: "STRING" },
                     entry: { type: "NUMBER" },
                     takeProfit: { type: "NUMBER" },
                     stopLoss: { type: "NUMBER" }
@@ -159,8 +162,12 @@ async function analyzeWithGemini(data, timeframe) {
             }
         }
     };
+    
+    // Use an AbortController to set a timeout for the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15-second timeout
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
     
     try {
         const response = await fetch(apiUrl, {
@@ -169,13 +176,15 @@ async function analyzeWithGemini(data, timeframe) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
+            signal: controller.signal // Add the signal to the fetch options
         });
+        
+        clearTimeout(timeoutId); // Clear the timeout if the request is successful
 
         const result = await response.json();
         const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (!jsonText) {
-            // Handle cases where no text part is returned from the API
             return {
                 analysis: 'Analysis failed. No text response from Gemini API. Please try again.',
                 entry: null,
@@ -185,10 +194,8 @@ async function analyzeWithGemini(data, timeframe) {
         }
 
         try {
-            // Attempt to parse the JSON
             return JSON.parse(jsonText);
         } catch (jsonError) {
-            // If parsing fails, return the raw text as the analysis
             console.error('JSON parsing failed. Returning raw text as analysis:', jsonError);
             return {
                 analysis: jsonText,
@@ -198,6 +205,16 @@ async function analyzeWithGemini(data, timeframe) {
             };
         }
     } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            console.error('API call timed out:', error);
+            return {
+                analysis: 'Analysis request timed out. Please try again.',
+                entry: null,
+                takeProfit: null,
+                stopLoss: null
+            };
+        }
         console.error('Error calling Gemini API:', error);
         return {
             analysis: 'Failed to get a response from the analysis service. Please check your API key and network connection.',
