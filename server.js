@@ -83,19 +83,23 @@ function getHistoricalOHLC(symbol, timeframe) {
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
         ws.onopen = () => {
             console.log('Connected to Deriv WebSocket for OHLC.');
+            // Corrected WebSocket request for historical data
             ws.send(JSON.stringify({
-                ohlc: symbol,
-                granularity: granularity,
-                count: 100,
-                adjust_start_time: 1
+                ticks_history: symbol,
+                adjust_start_time: 1,
+                end: 'latest',
+                start: 1,
+                count: 100, // Fetching 100 data points
+                style: 'candles',
+                granularity: granularity
             }));
         };
 
         ws.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
-            if (data.msg_type === 'ohlc') {
-                const ohlcData = data.ohlc.map(d => ({
-                    time: new Date(d.open_time * 1000).toISOString(),
+            if (data.msg_type === 'history') {
+                const ohlcData = data.candles.map(d => ({
+                    time: new Date(d.epoch * 1000).toISOString(),
                     open: parseFloat(d.open),
                     high: parseFloat(d.high),
                     low: parseFloat(d.low),
@@ -156,7 +160,7 @@ async function analyzeWithGemini(data, timeframe) {
         }
     };
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
     
     try {
         const response = await fetch(apiUrl, {
@@ -207,4 +211,3 @@ async function analyzeWithGemini(data, timeframe) {
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
-                
