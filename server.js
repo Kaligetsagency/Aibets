@@ -156,7 +156,7 @@ async function analyzeWithGemini(data, timeframe) {
         }
     };
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
     
     try {
         const response = await fetch(apiUrl, {
@@ -169,14 +169,34 @@ async function analyzeWithGemini(data, timeframe) {
 
         const result = await response.json();
         const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
         if (!jsonText) {
-            throw new Error('No JSON response from Gemini API.');
+            // Handle cases where no text part is returned from the API
+            return {
+                analysis: 'Analysis failed. No text response from Gemini API. Please try again.',
+                entry: null,
+                takeProfit: null,
+                stopLoss: null
+            };
         }
-        return JSON.parse(jsonText);
+
+        try {
+            // Attempt to parse the JSON
+            return JSON.parse(jsonText);
+        } catch (jsonError) {
+            // If parsing fails, return the raw text as the analysis
+            console.error('JSON parsing failed. Returning raw text as analysis:', jsonError);
+            return {
+                analysis: jsonText,
+                entry: null,
+                takeProfit: null,
+                stopLoss: null
+            };
+        }
     } catch (error) {
         console.error('Error calling Gemini API:', error);
         return {
-            analysis: 'Failed to get a structured response from the analysis service.',
+            analysis: 'Failed to get a response from the analysis service. Please check your API key and network connection.',
             entry: null,
             takeProfit: null,
             stopLoss: null
@@ -187,3 +207,4 @@ async function analyzeWithGemini(data, timeframe) {
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
+                
