@@ -3,26 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Match Winner Analyzer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>AI Market Analyst</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #111827; }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Match Winner Analyzer</h1>
-        <p>Upload a text file with a list of matches and click "Find Winners" to get the results.</p>
-        <div class="upload-area">
-            <input type="file" id="matchesFile" accept=".txt">
-            <button id="analyzeButton">Find Winners</button>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-800 text-white rounded-lg shadow-2xl p-8 max-w-4xl w-full">
+        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-400">AI Market Analyst</h1>
+        <p class="text-gray-400 text-center mb-8">
+            Get an in-depth analysis of a financial asset powered by Gemini AI and Deriv data.
+        </p>
+
+        <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
+            <select id="assetSelect" class="bg-gray-700 text-white rounded-lg p-3 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="R_50" selected>Volatility 50 (1s) Index</option>
+                <option value="R_100">Volatility 100 (1s) Index</option>
+                <option value="RDBULL">Bear Market Index</option>
+            </select>
+            <button id="analyzeBtn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors w-full md:w-auto">
+                Analyze Market
+            </button>
         </div>
-        <div id="loading" class="hidden">
-            <div class="spinner"></div>
-            <p>Analyzing matches, please wait...</p>
+
+        <div id="loading" class="hidden flex flex-col items-center justify-center p-10">
+            <div class="spinner mb-4"></div>
+            <p class="text-gray-400">Analyzing market data. Please wait...</p>
         </div>
-        <div id="results" class="hidden">
-            <h2>Results</h2>
-            <pre id="resultsText"></pre>
+
+        <div id="analysisResult" class="bg-gray-900 rounded-lg p-6 shadow-inner transition-opacity duration-500 opacity-0 hidden">
+            <h2 class="text-xl font-bold text-indigo-400 mb-4">Analysis Report</h2>
+            <div id="analysisText" class="prose prose-invert max-w-none text-gray-300">
+                <!-- Analysis will be injected here -->
+            </div>
         </div>
     </div>
-    <script src="script.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const assetSelect = document.getElementById('assetSelect');
+            const loadingIndicator = document.getElementById('loading');
+            const analysisResult = document.getElementById('analysisResult');
+            const analysisText = document.getElementById('analysisText');
+
+            analyzeBtn.addEventListener('click', async () => {
+                const selectedSymbol = assetSelect.value;
+                
+                // Show loading indicator and hide previous results
+                analysisResult.classList.add('hidden', 'opacity-0');
+                loadingIndicator.classList.remove('hidden');
+
+                try {
+                    const response = await fetch('/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ symbol: selectedSymbol }),
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Network response was not ok');
+                    }
+
+                    const data = await response.json();
+                    analysisText.innerHTML = formatAnalysisText(data.analysis);
+                    
+                    // Show analysis results
+                    loadingIndicator.classList.add('hidden');
+                    analysisResult.classList.remove('hidden');
+                    setTimeout(() => analysisResult.classList.remove('opacity-0'), 10);
+
+                } catch (error) {
+                    console.error('Error during analysis:', error);
+                    loadingIndicator.classList.add('hidden');
+                    analysisText.innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
+                    analysisResult.classList.remove('hidden');
+                    setTimeout(() => analysisResult.classList.remove('opacity-0'), 10);
+                }
+            });
+
+            function formatAnalysisText(text) {
+                // Replace markdown headings with HTML for better styling
+                return text.replace(/^(#+)\s*(.*)/gm, (match, p1, p2) => {
+                    const size = 3 - p1.length;
+                    return `<h${size} class="text-xl font-bold mt-4 mb-2 text-indigo-400">${p2}</h${size}>`;
+                }).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            }
+        });
+    </script>
 </body>
-</html>
+</html>   
