@@ -5,68 +5,150 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Market Analyst</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #111827; }
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #fff;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1a2b;
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-    <div class="bg-gray-800 text-white rounded-lg shadow-2xl p-8 max-w-4xl w-full">
-        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-400">AI Market Analyst</h1>
-        <p class="text-gray-400 text-center mb-8">
-            Get an in-depth analysis of a financial asset powered by Gemini AI and Deriv data.
-        </p>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col items-center p-4">
 
-        <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
-            <select id="assetSelect" class="bg-gray-700 text-white rounded-lg p-3 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="R_50" selected>Volatility 50 (1s) Index</option>
-                <option value="R_100">Volatility 100 (1s) Index</option>
-                <option value="RDBULL">Bear Market Index</option>
-            </select>
-            <button id="analyzeBtn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-indigo-700 transition-colors w-full md:w-auto">
+    <div class="w-full max-w-2xl bg-gray-900 rounded-3xl shadow-xl overflow-hidden my-auto p-8">
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-white mb-2">AI Market Analyst</h1>
+            <p class="text-gray-400">
+                Get an in-depth analysis of a financial asset powered by Gemini AI and Deriv data.
+            </p>
+        </div>
+
+        <div class="space-y-6 mb-8">
+            <div>
+                <label for="asset-select" class="block text-sm font-medium text-gray-300 mb-2">Select Asset</label>
+                <div class="relative">
+                    <select id="asset-select" class="w-full bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 appearance-none transition-colors duration-200">
+                        <option value="" disabled selected>Loading assets...</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label for="timeframe-select" class="block text-sm font-medium text-gray-300 mb-2">Select Timeframe</label>
+                <div class="relative">
+                    <select id="timeframe-select" class="w-full bg-gray-800 text-gray-100 border-2 border-gray-700 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 appearance-none transition-colors duration-200">
+                        <option value="1m">1m (1 minute)</option>
+                        <option value="5m" selected>5m (5 minutes)</option>
+                        <option value="15m">15m (15 minutes)</option>
+                        <option value="30m">30m (30 minutes)</option>
+                        <option value="1h">1h (1 hour)</option>
+                        <option value="4h">4h (4 hours)</option>
+                        <option value="1d">1d (1 day)</option>
+                        <option value="1w">1w (1 week)</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </div>
+            </div>
+
+            <button id="analyze-button" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50">
                 Analyze Market
             </button>
         </div>
 
-        <div id="loading" class="hidden flex flex-col items-center justify-center p-10">
-            <div class="spinner mb-4"></div>
-            <p class="text-gray-400">Analyzing market data. Please wait...</p>
-        </div>
-
-        <div id="analysisResult" class="bg-gray-900 rounded-lg p-6 shadow-inner transition-opacity duration-500 opacity-0 hidden">
-            <h2 class="text-xl font-bold text-indigo-400 mb-4">Analysis Report</h2>
-            <div id="analysisText" class="prose prose-invert max-w-none text-gray-300">
-                <!-- Analysis will be injected here -->
+        <div class="relative">
+            <h2 class="text-2xl font-bold text-white mb-4">Analysis Report</h2>
+            <div id="loading-indicator" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden">
+                <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500"></div>
+                <p class="mt-4 text-purple-400">Analyzing data...</p>
+            </div>
+            
+            <div id="analysis-results" class="space-y-4">
+                <div class="bg-gray-800 p-4 rounded-lg shadow-inner">
+                    <h3 class="font-semibold text-lg text-gray-300 mb-2">Summary</h3>
+                    <p id="gemini-analysis" class="text-gray-400 leading-relaxed text-sm">No analysis available. Please select an asset and timeframe and click "Analyze Market".</p>
+                </div>
+                
+                <div id="trade-recommendation" class="bg-gray-800 p-4 rounded-lg shadow-inner hidden">
+                    <h3 class="font-semibold text-lg text-green-400 mb-2">Trade Recommendation</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                        <div>
+                            <p class="text-xs text-gray-500">Entry</p>
+                            <p id="entry-price" class="text-lg font-bold text-green-500">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Take Profit</p>
+                            <p id="tp-price" class="text-lg font-bold text-green-500">-</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Stop Loss</p>
+                            <p id="sl-price" class="text-lg font-bold text-red-500">-</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const assetSelect = document.getElementById('assetSelect');
-            const loadingIndicator = document.getElementById('loading');
-            const analysisResult = document.getElementById('analysisResult');
-            const analysisText = document.getElementById('analysisText');
+            const assetSelect = document.getElementById('asset-select');
+            const timeframeSelect = document.getElementById('timeframe-select');
+            const analyzeButton = document.getElementById('analyze-button');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const geminiAnalysis = document.getElementById('gemini-analysis');
+            const tradeRecommendation = document.getElementById('trade-recommendation');
+            const entryPrice = document.getElementById('entry-price');
+            const tpPrice = document.getElementById('tp-price');
+            const slPrice = document.getElementById('sl-price');
 
-            analyzeBtn.addEventListener('click', async () => {
-                const selectedSymbol = assetSelect.value;
-                
-                // Show loading indicator and hide previous results
-                analysisResult.classList.add('hidden', 'opacity-0');
+            // Function to fetch and populate assets
+            async function fetchAssets() {
+                try {
+                    const response = await fetch('/assets');
+                    const assets = await response.json();
+                    assetSelect.innerHTML = ''; // Clear "Loading..."
+                    assets.forEach(asset => {
+                        const option = document.createElement('option');
+                        option.value = asset.symbol;
+                        option.textContent = asset.name;
+                        assetSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Failed to fetch assets:', error);
+                    assetSelect.innerHTML = `<option value="" disabled>Error loading assets</option>`;
+                }
+            }
+
+            // Function to handle the analysis request
+            async function analyzeMarket() {
+                const selectedAsset = assetSelect.value;
+                const selectedTimeframe = timeframeSelect.value;
+
+                if (!selectedAsset) {
+                    alert('Please select an asset.');
+                    return;
+                }
+
+                // Show loading state
+                geminiAnalysis.textContent = 'Analyzing market data... This may take a moment.';
                 loadingIndicator.classList.remove('hidden');
+                analyzeButton.disabled = true;
+                tradeRecommendation.classList.add('hidden');
 
                 try {
                     const response = await fetch('/analyze', {
@@ -74,39 +156,46 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ symbol: selectedSymbol }),
+                        body: JSON.stringify({ symbol: selectedAsset, timeframe: selectedTimeframe }),
                     });
-
+                    
                     if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || 'Network response was not ok');
+                        throw new Error(`Server error: ${response.statusText}`);
                     }
 
-                    const data = await response.json();
-                    analysisText.innerHTML = formatAnalysisText(data.analysis);
+                    const result = await response.json();
+                    const analysis = result.analysis;
                     
-                    // Show analysis results
-                    loadingIndicator.classList.add('hidden');
-                    analysisResult.classList.remove('hidden');
-                    setTimeout(() => analysisResult.classList.remove('opacity-0'), 10);
+                    if (analysis.analysis) {
+                        geminiAnalysis.textContent = analysis.analysis;
+                        entryPrice.textContent = analysis.entry ? analysis.entry.toFixed(4) : '-';
+                        tpPrice.textContent = analysis.takeProfit ? analysis.takeProfit.toFixed(4) : '-';
+                        slPrice.textContent = analysis.stopLoss ? analysis.stopLoss.toFixed(4) : '-';
+                        tradeRecommendation.classList.remove('hidden');
+                    } else {
+                        geminiAnalysis.textContent = analysis.analysis || 'Analysis failed. Please try again.';
+                        tradeRecommendation.classList.add('hidden');
+                    }
 
                 } catch (error) {
                     console.error('Error during analysis:', error);
+                    geminiAnalysis.textContent = 'Failed to get a structured analysis. Please try again.';
+                    tradeRecommendation.classList.add('hidden');
+                } finally {
+                    // Hide loading state
                     loadingIndicator.classList.add('hidden');
-                    analysisText.innerHTML = `<p class="text-red-400">Error: ${error.message}</p>`;
-                    analysisResult.classList.remove('hidden');
-                    setTimeout(() => analysisResult.classList.remove('opacity-0'), 10);
+                    analyzeButton.disabled = false;
                 }
-            });
-
-            function formatAnalysisText(text) {
-                // Replace markdown headings with HTML for better styling
-                return text.replace(/^(#+)\s*(.*)/gm, (match, p1, p2) => {
-                    const size = 3 - p1.length;
-                    return `<h${size} class="text-xl font-bold mt-4 mb-2 text-indigo-400">${p2}</h${size}>`;
-                }).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             }
+
+            // Event listeners
+            analyzeButton.addEventListener('click', analyzeMarket);
+
+            // Initial call to fetch assets when the page loads
+            fetchAssets();
         });
     </script>
+
 </body>
-</html>   
+</html>
+    
