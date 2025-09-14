@@ -1,13 +1,12 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const WebSocket = require('ws');
-require('dotenv').config(); // Load environment variables from .env file
+require('dotenv').config();
 
 const app = express();
 const PORT = 3000;
 
-// Get API keys from environment variables
-const DERIV_APP_ID = process.env.DERIV_APP_ID || 1089; // Default to a public test ID
+const DERIV_APP_ID = process.env.DERIV_APP_ID || 1089;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -15,19 +14,46 @@ if (!GEMINI_API_KEY) {
     process.exit(1);
 }
 
-app.use(express.static('public')); // Serve the index.html from a 'public' directory
+app.use(express.static('public'));
 app.use(express.json());
+
+// Endpoint to get active symbols from Deriv
+app.get('/assets', (req, res) => {
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ active_symbols: 'brief' }));
+    };
+    ws.onmessage = (msg) => {
+        const data = JSON.parse(msg.data);
+        if (data.msg_type === 'active_symbols') {
+            const assets = data.active_symbols
+                .filter(asset => asset.market === 'forex' || asset.market === 'synthetic_index')
+                .map(asset => ({
+                    symbol: asset.symbol,
+                    name: asset.display_name
+                }));
+            res.json(assets);
+            ws.close();
+        } else if (data.error) {
+            res.status(500).json({ error: data.error.message });
+            ws.close();
+        }
+    };
+    ws.onerror = (error) => {
+        res.status(500).json({ error: 'WebSocket error: ' + error.message });
+    };
+});
 
 // Main analysis endpoint
 app.post('/analyze', async (req, res) => {
-    const { symbol } = req.body;
-    if (!symbol) {
-        return res.status(400).json({ error: 'Asset symbol is required.' });
+    const { symbol, timeframe } = req.body;
+    if (!symbol || !timeframe) {
+        return res.status(400).json({ error: 'Asset symbol and timeframe are required.' });
     }
 
     try {
-        const data = await getHistoricalTicks(symbol);
-        const analysis = await analyzeWithGemini(data);
+        const data = await getHistoricalOHLC(symbol, timeframe);
+        const analysis = await analyzeWithGemini(data, timeframe);
         res.json({ analysis });
     } catch (error) {
         console.error('Error during analysis:', error);
@@ -35,39 +61,48 @@ app.post('/analyze', async (req, res) => {
     }
 });
 
-// Function to fetch historical tick data from Deriv
-function getHistoricalTicks(symbol) {
+// Function to fetch historical OHLC data (candlesticks) from Deriv
+function getHistoricalOHLC(symbol, timeframe) {
     return new Promise((resolve, reject) => {
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-        const historicalTicks = [];
-        const maxTicks = 200; // Limit the number of ticks for the analysis
+        const granularityMap = {
+            '1m': 60,
+            '5m': 300,
+            '15m': 900,
+            '30m': 1800,
+            '1h': 3600,
+            '4h': 14400,
+            '1d': 86400,
+            '1w': 604800,
+        };
 
+        const granularity = granularityMap[timeframe];
+        if (!granularity) {
+            return reject(new Error('Invalid timeframe selected.'));
+        }
+
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
         ws.onopen = () => {
-            console.log('Connected to Deriv WebSocket.');
-            // Request historical data
+            console.log('Connected to Deriv WebSocket for OHLC.');
             ws.send(JSON.stringify({
-                ticks_history: symbol,
-                adjust_start_time: 1,
-                end: 'latest',
-                start: 1,
-                count: maxTicks,
-                style: 'ticks'
+                ohlc: symbol,
+                granularity: granularity,
+                count: 100,
+                adjust_start_time: 1
             }));
         };
 
         ws.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
-            if (data.msg_type === 'history') {
-                const prices = data.history.prices;
-                const times = data.history.times;
-                for (let i = 0; i < prices.length; i++) {
-                    historicalTicks.push({
-                        time: new Date(times[i] * 1000).toISOString(),
-                        price: parseFloat(prices[i])
-                    });
-                }
+            if (data.msg_type === 'ohlc') {
+                const ohlcData = data.ohlc.map(d => ({
+                    time: new Date(d.open_time * 1000).toISOString(),
+                    open: parseFloat(d.open),
+                    high: parseFloat(d.high),
+                    low: parseFloat(d.low),
+                    close: parseFloat(d.close)
+                }));
                 ws.close();
-                resolve(historicalTicks);
+                resolve(ohlcData);
             } else if (data.error) {
                 reject(new Error(data.error.message));
                 ws.close();
@@ -80,24 +115,23 @@ function getHistoricalTicks(symbol) {
     });
 }
 
-// Function to call the Gemini API for analysis
-async function analyzeWithGemini(data) {
-    const dataPrompt = data.map(tick => `(${tick.time}, ${tick.price})`).join('\n');
+// Function to call the Gemini API for analysis with a structured JSON response
+async function analyzeWithGemini(data, timeframe) {
+    const dataPrompt = data.map(tick => `Time: ${tick.time}, Open: ${tick.open}, High: ${tick.high}, Low: ${tick.low}, Close: ${tick.close}`).join('\n');
     
     const userPrompt = `
-        Analyze the provided market data by following the steps below.
-
-        **Part 1: Initial Setup and Liquidity**
-        * **Asset and Timeframe:** The asset is from the Deriv platform. The data represents historical ticks.
-        * **Liquidity Identification:** Locate and identify key areas of **buyside liquidity** (above old highs) and **sellside liquidity** (below old lows) based on the provided price points. Explain what the potential "smart money" objective might be for these zones.
-
-        **Part 2: Structure and Imbalance**
-        * **Fair Value Gap (FVG):** Identify any recent **unmitigated fair value gaps** and describe them. Explain their significance, considering their size and whether they formed after a break in market structure.
-        * **Order Blocks:** Identify any valid **order blocks**. To be valid, the order block must meet the three rules discussed in the video: it must have an imbalance, be untouched, and have led to a break in market structure.
-
-        **Part 3: Price Action Narrative**
-        * **The Power of Three:** Analyze the recent price action to determine if it fits the "Power of Three" pattern (consolidation, manipulation, and acceleration). State which phase the market is currently in.
-        * **Synthesize and Conclude:** Combine your findings from the liquidity, FVG, order block, and Power of Three analyses to provide a comprehensive narrative of the market's current state. Based on this confluence, provide a potential future direction for the price and the reasoning behind your prediction.
+        You are a seasoned financial analyst. Analyze the provided candlestick market data for an asset from the Deriv platform, with a timeframe of ${timeframe}.
+        
+        **Part 1: In-depth Technical Analysis**
+        * **Identify Liquidity:** Identify key areas of buyside liquidity (above old highs) and sellside liquidity (below old lows). Explain what the potential "smart money" objective might be for these zones.
+        * **Fair Value Gaps (FVG):** Identify any unmitigated fair value gaps and their significance.
+        * **Order Blocks:** Identify any valid order blocks. A valid order block must be untouched, have an imbalance, and lead to a break in market structure.
+        * **Price Action Narrative:** Analyze the recent price action to determine if it fits the "Power of Three" pattern (consolidation, manipulation, and acceleration).
+        
+        **Part 2: Conclusive Trade Recommendation**
+        * Synthesize your findings from the technical analysis to provide a comprehensive narrative of the market's current state.
+        * Based on this confluence, provide a potential future direction for the price.
+        * Provide a specific trade recommendation with clear entry, take profit (TP), and stop loss (SL) prices.
 
         ---
         Market Data:
@@ -107,7 +141,19 @@ async function analyzeWithGemini(data) {
     const payload = {
         contents: [{
             parts: [{ text: userPrompt }]
-        }]
+        }],
+        generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: "OBJECT",
+                properties: {
+                    analysis: { type: "STRING" },
+                    entry: { type: "NUMBER" },
+                    takeProfit: { type: "NUMBER" },
+                    stopLoss: { type: "NUMBER" }
+                }
+            }
+        }
     };
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -122,11 +168,19 @@ async function analyzeWithGemini(data) {
         });
 
         const result = await response.json();
-        const analysisText = result.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis available.';
-        return analysisText;
+        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!jsonText) {
+            throw new Error('No JSON response from Gemini API.');
+        }
+        return JSON.parse(jsonText);
     } catch (error) {
         console.error('Error calling Gemini API:', error);
-        return 'Failed to get a response from the analysis service.';
+        return {
+            analysis: 'Failed to get a structured response from the analysis service.',
+            entry: null,
+            takeProfit: null,
+            stopLoss: null
+        };
     }
 }
 
