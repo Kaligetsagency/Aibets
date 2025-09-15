@@ -126,16 +126,15 @@ async function analyzeWithGemini(data, timeframe) {
     // Updated prompt to specifically request ICT analysis
     const userPrompt = `
         You are a seasoned financial analyst specializing in Inner Circle Trader (ICT) concepts. Analyze the provided candlestick market data for an asset from the Deriv platform, with a timeframe of ${timeframe}.
-        
-        Using ICT methodologies, identify and explain the following elements:
-        - **Buyside and Sellside Liquidity:** Identify key areas of liquidity that could be targeted by "smart money".
-        - **Fair Value Gaps (FVG):** Pinpoint any unmitigated fair value gaps and explain their significance.
-        - **Order Blocks:** Identify valid order blocks and their role in the current price action.
-        
-        Based on the confluence of these factors, provide a concise summary of the market's current state and a specific trade recommendation.
-        
-        Provide your analysis in the following JSON format. If no clear instance of an ICT element is found, you can state so in the corresponding field.
-        
+        You are an expert financial market analyst with extensive experience in technical analysis and price action trading. Your task is to analyze the provided candlestick data for a financial asset and provide a trading recommendation.
+
+Analyze the market based on the following:
+- **Trend Identification:** Determine the current market trend (bullish, bearish, or sideways) across multiple time horizons.
+- **Key Levels:** Identify significant support and resistance levels.
+- **Momentum:** Assess the strength and direction of the price movement.
+- **Price Action Patterns:** Look for common candlestick and chart patterns that indicate potential market reversals or continuations.
+
+Based on your analysis, provide a concrete trading recommendation. This recommendation must be a single, structured JSON object containing a potential entry point, a take-profit level, and a stop-loss level. Your output should contain only this JSON object and nothing else
         ---
         Market Data:
         ${dataPrompt}
