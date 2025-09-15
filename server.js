@@ -158,21 +158,15 @@ app.post('/api/analyze', async (req, res) => {
         const marketDataWithIndicators = await getMarketData(asset, timeframe);
 
         // This new prompt guides the AI to use a professional trading strategy.
-        const prompt = `You are an expert algorithmic trading strategist with deep knowledge of price action, market structure, and technical analysis. Your task is to identify the single best, highest-probability trade setup for ${asset} on the ${timeframe} timeframe based on the provided data.
+        const prompt = `You are an expert financial market analyst with extensive experience in technical analysis and price action trading. Your task is to analyze the provided candlestick data for a financial asset and provide a trading recommendation.
 
-Follow this exact strategic process:
-1.  **Market Structure Analysis**: First, determine the overall market trend. Is it bullish (higher highs and higher lows), bearish (lower highs and lower lows), or ranging? Use the 50 EMA as a dynamic guide for the trend.
-2.  **Identify Key Zones**: Pinpoint the most significant, recent support and resistance levels based on price action (previous swing highs and lows). These are areas where price is likely to react.
-3.  **Find a High-Probability Setup**: Look for a confluence of events. Do not trade based on a single indicator. A high-probability setup occurs when multiple factors align. For example:
-    * **Bullish Setup**: Price pulls back to a key support level which aligns with the 50 EMA, and the RSI is in or near oversold territory. The entry trigger is a strong bullish candlestick pattern (e.g., an engulfing candle, hammer, or morning star) forming at this zone.
-    * **Bearish Setup**: Price rallies to a key resistance level which aligns with the 50 EMA, and the RSI is in or near overbought territory. The entry trigger is a strong bearish candlestick pattern (e.g., a bearish engulfing, shooting star, or evening star) at this zone.
-4.  **Determine Optimal Levels**:
-    * **entryPoint**: The entry should be at the close of the trigger candle or a slight improvement on it.
-    * **stopLoss**: Place the stop-loss at a logical invalidation point. For a bullish trade, it should be just below the low of the trigger candle or the key support zone. For a bearish trade, just above the high of the trigger candle or the key resistance zone.
-    * **takeProfit**: The take-profit should target the next logical area of resistance (for a long trade) or support (for a short trade), ensuring a minimum reward-to-risk ratio of 1.5:1.
+Analyze the market based on the following:
+- **Trend Identification:** Determine the current market trend (bullish, bearish, or sideways) across multiple time horizons.
+- **Key Levels:** Identify significant support and resistance levels.
+- **Momentum:** Assess the strength and direction of the price movement.
+- **Price Action Patterns:** Look for common candlestick and chart patterns that indicate potential market reversals or continuations.
 
-Based on this complete strategy, analyze the data and return ONLY a JSON object with the three keys: "entryPoint", "stopLoss", and "takeProfit". If no high-probability setup is identified, return null values for all keys. Do not include any other text, markdown, or explanations.
-
+Based on your analysis, provide a concrete trading recommendation. This recommendation must be a single, structured JSON object containing a potential entry point, a take-profit level, and a stop-loss level. Your output should contain only this JSON object and nothing else'
 Data (last 100 candles for context): ${JSON.stringify(marketDataWithIndicators.slice(-100))}`;
 
         const apiKey = process.env.GEMINI_API_KEY;
