@@ -157,16 +157,20 @@ app.post('/api/analyze', async (req, res) => {
     try {
         const marketDataWithIndicators = await getMarketData(asset, timeframe);
 
-        // This new prompt guides the AI to use a professional trading strategy.
-        const prompt = `You are an expert financial market analyst with extensive experience in technical analysis and price action trading. Your task is to analyze the provided candlestick data for a financial asset and provide a trading recommendation.
+        // This new prompt is inspired by the "Smart Money Concepts" video.
+        const prompt = `You are an expert algorithmic trading strategist with deep knowledge of Smart Money Concepts (SMC) and Institutional Trading strategies. Your task is to identify the single best, highest-probability trade setup for ${asset} on the ${timeframe} timeframe based on the provided data, using SMC principles.
 
-Analyze the market based on the following:
-- **Trend Identification:** Determine the current market trend (bullish, bearish, or sideways) across multiple time horizons.
-- **Key Levels:** Identify significant support and resistance levels.
-- **Momentum:** Assess the strength and direction of the price movement.
-- **Price Action Patterns:** Look for common candlestick and chart patterns that indicate potential market reversals or continuations.
+Follow this exact strategic process:
+1.  **Identify Market Structure**: Determine the current market trend by identifying "Market Structure Shifts" or "Breaks of Structure" (BOS). Look for a clear transition from a bullish to a bearish trend, or vice-versa, which indicates a change in institutional intent.
+2.  **Pinpoint Institutional Price Zones**: Identify the most significant, recent "Fair Value Gaps" (FVG) or "Order Blocks." An FVG is a price imbalance that can act as a magnet. An Order Block is a candle that initiated a strong move, causing a market structure break. These zones are where institutions are likely to re-engage with the market.
+3.  **Find a High-Probability Setup**: Look for a confluence of events. A high-probability setup occurs when multiple SMC factors align. The ideal setup is when price has swept a "liquidity" zone (e.g., a previous swing high/low) and is now returning to mitigate an unmitigated FVG or Order Block. The entry trigger is a confirmation of a reaction at this zone.
+4.  **Determine Optimal Levels**:
+    * **entryPoint**: The entry should be precisely at the start of the identified Order Block or FVG zone.
+    * **stopLoss**: Place the stop-loss at a logical invalidation point, which is the high of the Order Block or the far side of the FVG.
+    * **takeProfit**: The take-profit should target the next logical liquidity zone (e.g., a major swing high or low) or a premium/discount array, ensuring a minimum reward-to-risk ratio of 1.5:1.
 
-Based on your analysis, provide a concrete trading recommendation. This recommendation must be a single, structured JSON object containing a potential entry point, a take-profit level, and a stop-loss level. Your output should contain only this JSON object and nothing else'
+Based on this complete strategy, analyze the data and return ONLY a JSON object with the three keys: "entryPoint", "stopLoss", and "takeProfit". If no high-probability setup is identified, return null values for all keys. Do not include any other text, markdown, or explanations.
+
 Data (last 100 candles for context): ${JSON.stringify(marketDataWithIndicators.slice(-100))}`;
 
         const apiKey = process.env.GEMINI_API_KEY;
@@ -218,4 +222,4 @@ Data (last 100 candles for context): ${JSON.stringify(marketDataWithIndicators.s
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
-});       
+});
