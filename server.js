@@ -45,108 +45,122 @@ function calculateAllIndicators(candles) {
         high: candles.map(c => c.high),
         low: candles.map(c => c.low),
         close: candles.map(c => c.close),
-        volume: candles.map(c => c.volume || 0),
-        period: 14,
+        volume: candles.map(c => c.volume)
     };
 
-    const sma20 = ti.SMA.calculate({ period: 20, values: input.close });
-    const ema50 = ti.EMA.calculate({ period: 50, values: input.close });
-    const rsi = ti.RSI.calculate({ period: 14, values: input.close });
-    const macd = ti.MACD.calculate({
+    const period = 14;
+    const rsi = ti.RSI.calculate({ values: input.close, period: period });
+    const macdInput = {
         values: input.close,
         fastPeriod: 12,
         slowPeriod: 26,
         signalPeriod: 9,
-        SimpleMAOscillator: false,
-        SimpleMASignal: false
-    });
-    const bollingerBands = ti.BollingerBands.calculate({
-        period: 20,
-        values: input.close,
-        stdDev: 2
-    });
-    const stochastic = ti.Stochastic.calculate({
+        SimpleMAonSignal: false,
+        SimpleMAonPrice: false
+    };
+    const macd = ti.MACD.calculate(macdInput);
+    const bollingerBands = ti.BollingerBands.calculate({ period: 20, values: input.close, stdDev: 2 });
+    const ichimokuCloud = ti.IchimokuCloud.calculate({
         high: input.high,
         low: input.low,
-        close: input.close,
-        period: 14,
-        signalPeriod: 3
-    });
-    const adx = ti.ADX.calculate({
-        high: input.high,
-        low: input.low,
-        close: input.close,
-        period: 14
+        conversionPeriod: 9,
+        basePeriod: 26,
+        laggingSpan: 52,
+        displacement: 26
     });
 
-    const candlesWithIndicators = candles.map((candle, index) => {
-        const newCandle = { ...candle };
-        const smaIndex = index - (candles.length - sma20.length);
-        const emaIndex = index - (candles.length - ema50.length);
-        const rsiIndex = index - (candles.length - rsi.length);
-        const macdIndex = index - (candles.length - macd.length);
-        const bbIndex = index - (candles.length - bollingerBands.length);
-        const stochIndex = index - (candles.length - stochastic.length);
-        const adxIndex = index - (candles.length - adx.length);
-
-        if (smaIndex >= 0) newCandle.sma20 = parseFloat(sma20[smaIndex].toFixed(4));
-        if (emaIndex >= 0) newCandle.ema50 = parseFloat(ema50[emaIndex].toFixed(4));
-        if (rsiIndex >= 0) newCandle.rsi = parseFloat(rsi[rsiIndex].toFixed(2));
-        if (macdIndex >= 0) newCandle.macd = macd[macdIndex];
-        if (bbIndex >= 0) newCandle.bollingerBands = bollingerBands[bbIndex];
-        if (stochIndex >= 0) newCandle.stochastic = stochastic[stochIndex];
-        if (adxIndex >= 0) newCandle.adx = adx[adxIndex];
-
-        return newCandle;
+    return candles.map((candle, index) => {
+        return {
+            ...candle,
+            rsi: rsi[index - (period - 1)],
+            macd: macd[index - (26 - 1)],
+            bollingerBands: bollingerBands[index - (20 - 1)],
+            ichimokuCloud: ichimokuCloud[index - (52 - 1)]
+        };
     });
-
-    return candlesWithIndicators;
 }
 
-/**
- * Deriv API communication via WebSocket to fetch historical candle data.
- * @param {string} asset - The financial asset to fetch data for.
- * @param {string} timeframe - The timeframe for the data.
- * @returns {Promise<any>} A promise that resolves with the fetched candles data, including indicators.
- */
-function getMarketData(asset, timeframe) {
-    return new Promise((resolve, reject) => {
-        const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+// Global variable to store live candle data
+let liveCandles = [];
+let ws;
+let currentAsset = '';
+let currentInterval = 60;
 
-        ws.onopen = () => {
-            ws.send(JSON.stringify({
-                "ticks_history": asset,
-                "end": "latest",
-                "count": 35000,
-                "style": "candles",
-                "granularity": getTimeframeInSeconds(timeframe)
+// Function to connect to the Deriv WebSocket API
+function connectToDeriv(asset, interval) {
+    // Close existing connection if it's open
+    if (ws) {
+        ws.close();
+    }
+    liveCandles = [];
+    currentAsset = asset;
+    currentInterval = interval;
+
+    ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+
+    ws.onopen = function (evt) {
+        console.log("WebSocket connection opened.");
+        // Request historical data (e.g., last 200 candles)
+        ws.send(JSON.stringify({
+            "ticks_history": asset,
+            "end": "latest",
+            "count": 200,
+            "style": "candles",
+            "granularity": interval
+        }));
+    };
+
+    ws.onmessage = function (msg) {
+        const data = JSON.parse(msg.data);
+        if (data.history) {
+            // Initial historical data
+            const newCandles = data.history.times.map((time, index) => ({
+                epoch: parseInt(time),
+                open: data.history.open[index],
+                high: data.history.high[index],
+                low: data.history.low[index],
+                close: data.history.close[index],
+                volume: 0 // Deriv ticks_history doesn't provide volume for candles
             }));
-        };
+            liveCandles = newCandles;
+            console.log(`Received initial ${liveCandles.length} candles.`);
+        } else if (data.candles) {
+            // A new candle has been received
+            const latestCandle = data.candles[0];
+            const newCandle = {
+                epoch: parseInt(latestCandle.epoch),
+                open: latestCandle.open,
+                high: latestCandle.high,
+                low: latestCandle.low,
+                close: latestCandle.close,
+                volume: 0
+            };
 
-        ws.onmessage = (msg) => {
-            const data = JSON.parse(msg.data);
-            if (data.error) {
-                reject(new Error(data.error.message));
-                ws.close();
-            } else if (data.msg_type === 'candles') {
-                if (data.candles && data.candles.length > 0) {
-                    const candlesWithIndicators = calculateAllIndicators(data.candles);
-                    resolve(candlesWithIndicators);
-                } else {
-                    reject(new Error(`No candle data returned for asset ${asset} and timeframe.`));
+            // Check if we already have this candle (e.g., if it's a re-tick)
+            if (liveCandles.length > 0 && liveCandles[liveCandles.length - 1].epoch === newCandle.epoch) {
+                // Update the last candle
+                liveCandles[liveCandles.length - 1] = newCandle;
+            } else {
+                // Add new candle and maintain a limited history
+                liveCandles.push(newCandle);
+                if (liveCandles.length > 200) {
+                    liveCandles.shift();
                 }
-                ws.close();
             }
-        };
+            console.log("Received new candle. Total candles:", liveCandles.length);
+        }
+    };
 
-        ws.onclose = () => {};
-        ws.onerror = (err) => {
-            reject(new Error('WebSocket error: ' + err.message));
-        };
-    });
+    ws.onclose = function (evt) {
+        console.log("WebSocket connection closed.");
+    };
+
+    ws.onerror = function (err) {
+        console.error("WebSocket error:", err);
+    };
 }
 
-// API endpoint to analyze market data
+// API endpoint to trigger analysis
 app.post('/api/analyze', async (req, res) => {
     const { asset, timeframe } = req.body;
 
@@ -155,38 +169,60 @@ app.post('/api/analyze', async (req, res) => {
     }
 
     try {
-        const marketDataWithIndicators = await getMarketData(asset, timeframe);
+        const interval = getTimeframeInSeconds(timeframe);
 
-        // This new prompt is inspired by the "Smart Money Concepts" video.
-        const prompt = `You are an expert algorithmic trading strategist with deep knowledge of Smart Money Concepts (SMC) and Institutional Trading strategies. Your task is to identify the single best, highest-probability trade setup for ${asset} on the ${timeframe} timeframe based on the provided data, using SMC principles.
+        // Disconnect and reconnect to fetch new data for the selected asset/timeframe
+        connectToDeriv(asset, interval);
 
-Follow this exact strategic process:
-1.  **Identify Market Structure**: Determine the current market trend by identifying "Market Structure Shifts" or "Breaks of Structure" (BOS). Look for a clear transition from a bullish to a bearish trend, or vice-versa, which indicates a change in institutional intent.
-2.  **Pinpoint Institutional Price Zones**: Identify the most significant, recent "Fair Value Gaps" (FVG) or "Order Blocks." An FVG is a price imbalance that can act as a magnet. An Order Block is a candle that initiated a strong move, causing a market structure break. These zones are where institutions are likely to re-engage with the market.
-3.  **Find a High-Probability Setup**: Look for a confluence of events. A high-probability setup occurs when multiple SMC factors align. The ideal setup is when price has swept a "liquidity" zone (e.g., a previous swing high/low) and is now returning to mitigate an unmitigated FVG or Order Block. The entry trigger is a confirmation of a reaction at this zone.
-4.  **Determine Optimal Levels**:
-    * **entryPoint**: The entry should be precisely at the start of the identified Order Block or FVG zone.
-    * **stopLoss**: Place the stop-loss at a logical invalidation point, which is the high of the Order Block or the far side of the FVG.
-    * **takeProfit**: The take-profit should target the next logical liquidity zone (e.g., a major swing high or low) or a premium/discount array, ensuring a minimum reward-to-risk ratio of 1.5:1.
+        // Wait a few seconds to ensure we have a good number of candles
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
-Based on this complete strategy, analyze the data and return ONLY a JSON object with the three keys: "entryPoint", "stopLoss", and "takeProfit". If no high-probability setup is identified, return null values for all keys. Do not include any other text, markdown, or explanations.
+        if (liveCandles.length < 50) {
+            throw new Error('Not enough historical data to perform a proper analysis. Please try again or with a different asset/timeframe.');
+        }
 
-Data (last 100 candles for context): ${JSON.stringify(marketDataWithIndicators.slice(-100))}`;
+        const candlesWithIndicators = calculateAllIndicators(liveCandles);
 
-        const apiKey = process.env.GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+        const analysisPrompt = `
+You are an expert financial market analyst with extensive experience in technical analysis and price action trading. Your task is to analyze the provided candlestick data for a financial asset and provide a trading recommendation.
 
-        const aiResponse = await fetch(apiUrl, {
+Analyze the market based on the following:
+- **Trend Identification:** Determine the current market trend (bullish, bearish, or sideways) across multiple time horizons.
+- **Key Levels:** Identify significant support and resistance levels.
+- **Momentum:** Assess the strength and direction of the price movement.
+- **Price Action Patterns:** Look for common candlestick and chart patterns that indicate potential market reversals or continuations.
+
+Based on your analysis, provide a concrete trading recommendation. This recommendation must be a single, structured JSON object containing a potential entry point, a take-profit level, and a stop-loss level. Your output should contain only this JSON object and nothing else
+`;
+
+        const requestBody = {
+            model: "deepseek-coder",
+            messages: [
+                {
+                    role: "system",
+                    content: analysisPrompt
+                },
+                {
+                    role: "user",
+                    content: `Here is the candle data with technical indicators for ${asset} on a ${timeframe} timeframe:\n\n` +
+                        JSON.stringify(candlesWithIndicators, null, 2)
+                }
+            ],
+            stream: false
+        };
+
+        const aiResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`
+            },
+            body: JSON.stringify(requestBody)
         });
 
         if (!aiResponse.ok) {
             const errorBody = await aiResponse.text();
-            throw new Error(`Gemini API request failed with status ${aiResponse.status}: ${errorBody}`);
+            throw new Error(`AI API responded with status ${aiResponse.status}: ${errorBody}`);
         }
 
         const aiResult = await aiResponse.json();
