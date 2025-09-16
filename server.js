@@ -177,7 +177,7 @@ app.post('/api/analyze', async (req, res) => {
         // Wait a few seconds to ensure we have a good number of candles
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        if (liveCandles.length < 50) {
+        if (liveCandles.length < 10) {
             throw new Error('Not enough historical data to perform a proper analysis. Please try again or with a different asset/timeframe.');
         }
 
