@@ -171,7 +171,7 @@ Follow this exact strategic process:
     * **stopLoss**: Place the stop-loss at a logical invalidation point. For a bullish trade, it should be just below the low of the trigger candle or the key support zone. For a bearish trade, just above the high of the trigger candle or the key resistance zone.
     * **takeProfit**: The take-profit should target the next logical area of resistance (for a long trade) or support (for a short trade), ensuring a minimum reward-to-risk ratio of 1.5:1.
 
-Based on this complete strategy, analyze the data and return ONLY a JSON object with the three keys: "buyorsellentryPoint", "stopLoss", and "takeProfit". Do not include any other text, markdown, or explanations.
+Based on this complete strategy, analyze the data and return ONLY a JSON object with the three keys:"sell" or "buy", "entryPoint", "stopLoss", and "takeProfit". Do not include any other text, markdown, or explanations.
 
 Data (last 100 candles for context): ${JSON.stringify(marketDataWithIndicators.slice(-100))}`;
 
