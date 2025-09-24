@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,9 @@ app.use(cors());
 app.use(express.json());
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public'))); 
+
+const DERIV_APP_ID = process.env.DERIV_APP_ID || 1089;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Define the schema for the Gemini's JSON response
 const analysisSchema = {
@@ -32,7 +36,7 @@ const analysisSchema = {
         },
         justification: {
             type: "string",
-            description: "A brief justification based on the provided data."
+            description: "A brief justification based on the provided daily price data."
         },
         support_levels: {
             type: "array",
@@ -53,86 +57,114 @@ const analysisSchema = {
 };
 
 
-// Function to fetch historical and current data from Alpha Vantage
-async function fetchAssetData(asset) {
-    const avApiKey = process.env.ALPHA_VANTAGE_API_KEY;
-    if (!avApiKey) {
-        throw new Error('Alpha Vantage API key is not configured.');
-    }
-
-    // Alpha Vantage uses symbols like 'FX_BTCUSD' or 'FX_EURUSD' for forex/crypto
-    // We assume the frontend passes a standard symbol like EURUSD
-    const symbol = `FX_${asset}`.replace('FX_FX_', 'FX_'); // Handle potential double FX_ if asset is already FX_EURUSD
-    
-    // Fetch 1-hour data for historical chart
-    const url = `https://www.alphavantage.co/query?function=FX_DAILY&from_symbol=${asset.substring(0, 3)}&to_symbol=${asset.substring(3)}&outputsize=full&apikey=${avApiKey}`;
-
-    try {
-        const response = await axios.get(url);
-        const data = response.data['Time Series FX (Daily)'];
+/**
+ * Fetches historical 1-day candles from Deriv's WebSocket API.
+ * @param {string} asset - The asset symbol (e.g., R_100).
+ * @returns {Promise<object>} - Object containing currentPrice, priceSummary for AI, and chartData.
+ */
+function fetchDerivCandles(asset) {
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
         
-        if (!data) {
-            throw new Error('Could not retrieve valid data from Alpha Vantage. Check asset symbol and API key.');
-        }
+        let candles_data = [];
 
-        // Get the latest 5 days of data for the prompt and the chart
-        const timeSeriesKeys = Object.keys(data).sort().reverse();
-        const latestDataKeys = timeSeriesKeys.slice(0, 5); 
+        ws.on('open', () => {
+            console.log(`Connected to Deriv WS for asset: ${asset}`);
+            const candleRequest = {
+                "ticks_history": asset,
+                "end": "latest",
+                "start": 1, // Start from the beginning of available history
+                "style": "candles",
+                "granularity": 86400, // 1 Day candles
+                "count": 30 // Get 30 candles for robust analysis and chart
+            };
+            ws.send(JSON.stringify(candleRequest));
+        });
+
+        ws.on('message', (data) => {
+            const response = JSON.parse(data);
+
+            if (response.error) {
+                ws.close();
+                return reject(new Error(`Deriv API Error: ${response.error.message}`));
+            }
+
+            if (response.msg_type === 'candles' && response.candles) {
+                candles_data = response.candles.map(c => ({
+                    epoch: c.epoch,
+                    date: new Date(c.epoch * 1000).toISOString().split('T')[0],
+                    open: parseFloat(c.open),
+                    high: parseFloat(c.high),
+                    low: parseFloat(c.low),
+                    close: parseFloat(c.close)
+                }));
+                
+                // Get the most recent candle's close price as current price
+                const currentPrice = candles_data.length > 0 ? candles_data[candles_data.length - 1].close : 'N/A';
+                
+                // Prepare a summary of the last 5 candles for the AI prompt
+                const lastFiveCandles = candles_data.slice(-5).map(c => ({
+                    date: c.date,
+                    open: c.open.toFixed(5),
+                    close: c.close.toFixed(5),
+                    high: c.high.toFixed(5),
+                    low: c.low.toFixed(5)
+                }));
+
+                ws.close();
+                resolve({ 
+                    currentPrice, 
+                    priceSummary: JSON.stringify(lastFiveCandles, null, 2), 
+                    chartData: candles_data 
+                });
+            }
+        });
+
+        ws.on('error', (err) => {
+            reject(new Error(`WebSocket connection error: ${err.message}`));
+        });
         
-        const latestDataPoints = latestDataKeys.map(key => ({
-            date: key,
-            open: parseFloat(data[key]['1. open']),
-            high: parseFloat(data[key]['2. high']),
-            low: parseFloat(data[key]['3. low']),
-            close: parseFloat(data[key]['4. close']),
-        }));
-
-        const currentPrice = latestDataPoints[0] ? latestDataPoints[0].close : 'N/A';
-        const latestPriceSummary = JSON.stringify(latestDataPoints.slice(0, 3), null, 2); // Send last 3 days to AI
-
-        return { currentPrice, latestPriceSummary, chartData: latestDataPoints.reverse() };
-
-    } catch (error) {
-        console.error('Error fetching data from Alpha Vantage:', error.message);
-        throw new Error('Failed to retrieve market data for analysis.');
-    }
+        ws.on('close', () => {
+             console.log('Deriv WS connection closed.');
+        });
+    });
 }
 
 
 app.post('/analyze', async (req, res) => {
     const { asset } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
 
     if (!asset) {
         return res.status(400).json({ message: 'Asset symbol is required.' });
     }
 
-    if (!apiKey) {
-        return res.status(500).json({ message: 'API key is not configured on the server.' });
+    if (!GEMINI_API_KEY) {
+        return res.status(500).json({ message: 'Gemini API key is not configured on the server.' });
     }
 
     let marketData;
     try {
-        marketData = await fetchAssetData(asset);
+        marketData = await fetchDerivCandles(asset);
     } catch (error) {
-        return res.status(503).json({ message: error.message });
+        // Handle Deriv/WS errors
+        return res.status(503).json({ message: `Data retrieval failed: ${error.message}` });
     }
 
     const prompt = `
-        You are a veteran Foreign Exchange market analyst with 15 years of experience. Your analysis must be objective, based solely on the provided market data, and focus on short-term actionable insights.
+        You are a veteran Foreign Exchange market analyst with 15 years of experience specializing in synthetic indices. Your analysis must be objective, based solely on the provided market data (daily candles), and focus on short-term actionable insights.
         
-        Analyze the forex asset ${asset} given the following daily price summary (last 3 trading days):
+        Analyze the asset ${asset} given the following summary of the last 5 daily candles:
         
-        ${marketData.latestPriceSummary}
+        ${marketData.priceSummary}
 
         Provide a concise but comprehensive analysis according to the required JSON schema.
         
         - The sentiment must be justified using trends or price action from the provided data.
-        - The trend prediction is for the next 4-8 hours (intraday).
+        - The trend prediction is for the next 4-8 hours (intraday) based on the daily context.
         - Key price levels should be relevant to the current trading range.
     `;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
     try {
         const response = await axios.post(apiUrl, {
@@ -158,7 +190,7 @@ app.post('/analyze', async (req, res) => {
 
     } catch (error) {
         console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
-        res.status(500).json({ message: 'Failed to retrieve analysis from AI service.' });
+        res.status(500).json({ message: 'Failed to retrieve analysis from AI service. Check Gemini API key.' });
     }
 });
 
