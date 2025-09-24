@@ -3,56 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Forex Analysis</title>
+    <title>AI-Powered Forex Analysis</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
+    <main class="container">
         <header>
-            <h1>🤖 AI Forex Asset Analysis</h1>
-            <p>Select a forex asset to get real-time analysis powered by Gemini 2.5 Flash.</p>
+            <h1>AI-Powered Forex Analysis</h1>
+            <p>Real-time prices via Deriv.com & analysis by Gemini 2.5 Flash</p>
         </header>
 
-        <main>
-            <div class="controls">
-                <label for="asset-select">Choose a Forex Asset:</label>
-                <select id="asset-select">
+        <section class="controls">
+            <div class="control-group">
+                <label for="asset-selector">Select an Asset:</label>
+                <select id="asset-selector">
                     <option value="">Loading assets...</option>
                 </select>
             </div>
+            <button id="analyze-button" disabled>Analyze Asset</button>
+        </section>
 
-            <div id="analysis-container" class="hidden">
-                <div id="loader" class="loader hidden"></div>
-                <div id="results">
-                    <div class="summary-cards">
-                        <div class="card">
-                            <h2>Forecast</h2>
-                            <p id="forecast-result">--</p>
-                        </div>
-                        <div class="card">
-                            <h2>Sentiment</h2>
-                            <p id="sentiment-result" class="sentiment-neutral">--</p>
-                        </div>
-                         <div class="card">
-                            <h2>Reversal Alert</h2>
-                            <p id="reversal-result">--</p>
-                        </div>
-                    </div>
-                    <div class="card details">
-                        <h2>Detailed Analysis</h2>
-                        <div id="details-result"><p>Select an asset to see the detailed analysis.</p></div>
-                    </div>
-                </div>
+        <section class="data-display">
+            <div id="price-display">Price: --</div>
+        </section>
+
+        <section class="analysis-section">
+            <h2>AI Analysis</h2>
+            <div id="ai-analysis-output">
+                <p class="placeholder">Select an asset and click 'Analyze Asset' to get AI-powered insights.</p>
             </div>
-             <div id="error-message" class="error-message hidden"></div>
-        </main>
-        
-        <footer>
-            <p>Data provided by Deriv.com | AI Analysis by Google Gemini</p>
-        </footer>
-    </div>
+        </section>
+    </main>
 
     <script src="script.js"></script>
 </body>
 </html>
+                    
