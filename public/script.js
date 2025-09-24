@@ -26,7 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTickSubscriptionId = null;
 
     ws.onopen = () => {
-        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+        // --- THIS IS THE FIX ---
+        // Make the request more specific to get a reliable list of forex assets.
+        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic", landing_company: "svg" }));
+        // ----------------------
     };
 
     ws.onmessage = (event) => {
@@ -34,7 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.error) return;
 
         if (data.msg_type === 'active_symbols') {
-            const forexAssets = data.active_symbols.filter(asset => asset.market === 'forex' && asset.submarket === 'major_pairs');
+            // Filter for assets where the market is 'forex'.
+            const forexAssets = data.active_symbols.filter(asset => asset.market === 'forex');
             assetSelector.innerHTML = '<option value="">Select an asset</option>';
             forexAssets.forEach(asset => {
                 const option = document.createElement('option');
