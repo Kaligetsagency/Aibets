@@ -1,7 +1,7 @@
 {
   "name": "ai-forex-analyzer",
-  "version": "1.0.0",
-  "description": "An AI-powered forex asset analysis web application.",
+  "version": "2.0.0",
+  "description": "An AI-powered forex asset analysis web application with real-time data integration.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,7 +11,8 @@
     "ai",
     "nodejs",
     "express",
-    "gemini"
+    "gemini",
+    "chartjs"
   ],
   "author": "",
   "license": "ISC",
