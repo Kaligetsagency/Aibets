@@ -1,200 +1,133 @@
 document.addEventListener('DOMContentLoaded', () => {
     const assetSelector = document.getElementById('asset-selector');
+    const timeframeSelector = document.getElementById('timeframe-selector');
     const analyzeButton = document.getElementById('analyze-button');
     const priceDisplay = document.getElementById('price-display');
-    const analysisOutput = document.getElementById('ai-analysis-output');
-    const chartCanvas = document.getElementById('priceChart');
-    
-    // Create the loader element in JavaScript
-    const loader = document.createElement('div');
-    loader.className = 'loader'; 
-    
-    let priceChart = null; 
+    const aiAnalysisOutput = document.getElementById('ai-analysis-output');
+    const chartContainer = document.getElementById('chart');
+    const chartLoader = document.getElementById('chart-loader');
 
-    // --- 1. Asset Population Logic ---
-    async function populateAssets() {
-        try {
-            const response = await fetch('/assets');
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Server error: ${response.status}`);
-            }
-            const assets = await response.json();
-            
-            // Clear loading message and add default
-            assetSelector.innerHTML = '<option value="" disabled selected>Select an Asset...</option>';
-            
-            assets.forEach(asset => {
+    // --- Chart Setup ---
+    const chart = LightweightCharts.createChart(chartContainer, {
+        width: chartContainer.clientWidth,
+        height: 400,
+        layout: { textColor: '#d1d4dc', backgroundColor: '#181c27' },
+        grid: { vertLines: { color: '#2f3241' }, horzLines: { color: '#2f3241' } },
+        timeScale: { timeVisible: true, secondsVisible: false },
+    });
+    const candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
+        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
+    });
+    // --- End Chart Setup ---
+
+    const DERIV_APP_ID = 1089; // Your Deriv App ID
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+    let currentTickSubscriptionId = null;
+
+    ws.onopen = () => {
+        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.error) return;
+
+        if (data.msg_type === 'active_symbols') {
+            const forexAssets = data.active_symbols.filter(asset => asset.market === 'forex' && asset.submarket === 'major_pairs');
+            assetSelector.innerHTML = '<option value="">Select an asset</option>';
+            forexAssets.forEach(asset => {
                 const option = document.createElement('option');
                 option.value = asset.symbol;
-                option.textContent = asset.name;
+                option.textContent = asset.display_name;
                 assetSelector.appendChild(option);
             });
-
-        } catch (error) {
-            assetSelector.innerHTML = '<option value="" disabled selected>Error loading assets</option>';
-            console.error('Failed to populate assets:', error);
+            analyzeButton.disabled = false;
         }
-    }
 
-    // Call asset population on load
-    populateAssets();
+        if (data.msg_type === 'tick') {
+            const price = data.tick.quote.toFixed(5);
+            priceDisplay.textContent = `Price: ${price}`;
+            currentTickSubscriptionId = data.subscription.id;
+        }
+
+        if (data.msg_type === 'candles') {
+            const candleData = data.candles.map(candle => ({
+                time: candle.epoch,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+            }));
+            candleSeries.setData(candleData);
+            chartLoader.classList.remove('active');
+        }
+    };
     
-    // --- 2. Event Listeners ---
-    assetSelector.addEventListener('change', () => {
-        analyzeButton.disabled = !assetSelector.value;
-    });
+    // Function to fetch and display chart data
+    const updateChartAndPrice = () => {
+        const selectedAsset = assetSelector.value;
+        const selectedTimeframe = timeframeSelector.value;
+        priceDisplay.textContent = 'Price: --';
 
-    analyzeButton.addEventListener('click', analyzeAsset);
+        if (currentTickSubscriptionId) {
+            ws.send(JSON.stringify({ forget: currentTickSubscriptionId }));
+            currentTickSubscriptionId = null;
+        }
 
-    // --- 3. Main Analysis Logic ---
-    async function analyzeAsset() {
-        const asset = assetSelector.value;
-        if (!asset) return;
+        if (selectedAsset) {
+            chartLoader.classList.add('active');
+            // Subscribe to real-time price ticks
+            ws.send(JSON.stringify({ ticks: selectedAsset, subscribe: 1 }));
+            // Get history for the chart
+            ws.send(JSON.stringify({
+                ticks_history: selectedAsset,
+                style: "candles",
+                end: "latest",
+                count: 60,
+                granularity: parseInt(selectedTimeframe),
+            }));
+        } else {
+             candleSeries.setData([]); // Clear chart if no asset
+        }
+    };
+    
+    assetSelector.addEventListener('change', updateChartAndPrice);
+    timeframeSelector.addEventListener('change', updateChartAndPrice);
 
-        // Set Loading State
-        analysisOutput.innerHTML = '';
-        analysisOutput.appendChild(loader);
-        loader.style.display = 'block';
-        analyzeButton.disabled = true;
-        priceDisplay.textContent = 'Price: Fetching Data...';
-        
-        const assetName = assetSelector.options[assetSelector.selectedIndex].text;
+    analyzeButton.addEventListener('click', async () => {
+        const selectedAsset = assetSelector.value;
+        const selectedTimeframe = timeframeSelector.value;
+        if (!selectedAsset) {
+            alert("Please select an asset first.");
+            return;
+        }
+
+        aiAnalysisOutput.innerHTML = '<div class="loader-container active"><div class="loader"></div></div>';
 
         try {
-            // Call the server endpoint
             const response = await fetch('/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ asset })
+                body: JSON.stringify({ asset: selectedAsset, timeframe: selectedTimeframe })
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Server error: ${response.status}`);
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to get analysis.');
             }
 
-            const data = await response.json();
-            const { analysis, chartData, currentPrice } = data;
-
-            // Update Price Display
-            priceDisplay.textContent = `Price: ${parseFloat(currentPrice).toFixed(3)}`;
-
-            // Render Chart
-            renderChart(chartData, assetName);
-
-            // Render Structured Analysis
-            renderAnalysis(analysis);
+            const analysis = await response.json();
+            aiAnalysisOutput.innerHTML = analysis.htmlContent;
 
         } catch (error) {
-            console.error('Analysis failed:', error);
-            analysisOutput.innerHTML = `<p class="placeholder" style="color: var(--bearish-color);">Analysis Error: ${error.message}.</p>`;
-            priceDisplay.textContent = 'Price: --';
-            if (priceChart) priceChart.destroy();
-        } finally {
-            // Reset State
-            loader.style.display = 'none';
-            analyzeButton.disabled = false;
+            console.error("Analysis Error:", error);
+            aiAnalysisOutput.innerHTML = `<p class="error">Error: Could not fetch analysis. ${error.message}</p>`;
         }
-    }
+    });
 
-    // --- 4. Chart Rendering ---
-    function renderChart(data, assetName) {
-        if (priceChart) {
-            priceChart.destroy(); 
-        }
-        
-        // Prepare data for Chart.js
-        const chartDataPoints = data.map(d => ({
-            x: new Date(d.epoch * 1000), 
-            y: [d.low, d.high] // Low/High for bar range
-        }));
-        
-        // Define colors based on open vs close (Bullish/Bearish)
-        const colors = data.map(d => (d.close >= d.open ? 'rgba(76, 175, 80, 0.8)' : 'rgba(244, 67, 54, 0.8)'));
-
-        priceChart = new Chart(chartCanvas, {
-            type: 'bar', // Using bar chart as a simple candlestick substitute
-            data: {
-                datasets: [{
-                    label: 'Daily Price Action',
-                    data: chartDataPoints,
-                    backgroundColor: colors,
-                    borderColor: colors,
-                    borderWidth: 1,
-                    barPercentage: 1.0, 
-                    categoryPercentage: 1.0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: { unit: 'day' },
-                        grid: { display: false },
-                        ticks: { color: 'var(--secondary-text-color)' }
-                    },
-                    y: {
-                        beginAtZero: false,
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                        ticks: { color: 'var(--secondary-text-color)' }
-                    }
-                },
-                plugins: {
-                    legend: { display: false },
-                    title: {
-                        display: true,
-                        text: `${assetName} Daily Candles (Last 30 days)`,
-                        color: 'var(--primary-text-color)'
-                    }
-                }
-            }
-        });
-    }
-
-    // --- 5. Structured JSON Rendering ---
-    function renderAnalysis(analysis) {
-        const sentimentClass = analysis.sentiment.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        analysisOutput.innerHTML = `
-            <div class="analysis-header">
-                <div class="sentiment ${sentimentClass}">
-                    ${analysis.sentiment.toUpperCase()}
-                </div>
-                <div class="confidence-score">
-                    Confidence: ${analysis.confidence_score}/10
-                </div>
-            </div>
-
-            <h3>Trend Prediction</h3>
-            <p>${analysis.trend_prediction}</p>
-
-            <h3>Justification</h3>
-            <p>${analysis.justification}</p>
-
-            <h3>Key Price Levels</h3>
-            <div style="display: flex; gap: 2rem;">
-                <div>
-                    <h4>Support:</h4>
-                    <ul class="levels-list">
-                        ${analysis.support_levels.map(level => `<li>${parseFloat(level).toFixed(3)}</li>`).join('')}
-                    </ul>
-                </div>
-                <div>
-                    <h4>Resistance:</h4>
-                    <ul class="levels-list">
-                        ${analysis.resistance_levels.map(level => `<li>${parseFloat(level).toFixed(3)}</li>`).join('')}
-                    </ul>
-                </div>
-            </div>
-
-            <div class="trade-idea-box">
-                <strong>Potential Trade Idea:</strong>
-                <p>${analysis.trade_idea}</p>
-                <p style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;">Disclaimer: This is for informational purposes only and is not financial advice.</p>
-            </div>
-        `;
-    }
+    // Resize chart with window
+    window.addEventListener('resize', () => {
+        chart.resize(chartContainer.clientWidth, 400);
+    });
 });
