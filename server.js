@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const path = require('path'); // Import the 'path' module
 require('dotenv').config();
 
 const app = express();
@@ -8,6 +9,11 @@ const port = 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// --- ADD THIS LINE ---
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+// --------------------
 
 app.post('/analyze', async (req, res) => {
     const { asset } = req.body;
@@ -42,7 +48,7 @@ app.post('/analyze', async (req, res) => {
         <p>A brief, hypothetical trade setup (e.g., 'Consider a long position if price breaks above X with a target of Y'). This is for informational purposes only and not financial advice.</p>
     `;
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5:generateContent?key=${apiKey}`;
 
     try {
         const response = await axios.post(apiUrl, {
@@ -65,3 +71,5 @@ app.post('/analyze', async (req, res) => {
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
 });
+
+    
