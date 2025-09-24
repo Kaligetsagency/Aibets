@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
-const WebSocket = require('ws');
+const WebSocket = require('ws'); // <-- Add WebSocket dependency
 require('dotenv').config();
 
 const app = express();
@@ -10,221 +10,99 @@ const port = 3000;
 
 app.use(cors());
 app.use(express.json());
+
 // Serve static files from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public'))); 
+app.use(express.static(path.join(__dirname, 'public')));
 
-const DERIV_APP_ID = process.env.DERIV_APP_ID || 1089;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = 'gemini-2.5-flash'; // Using a stable model
+const DERIV_APP_ID = 1089; // Use your Deriv App ID
 
-// Define the schema for the Gemini's JSON response
-const analysisSchema = {
-    type: "object",
-    properties: {
-        sentiment: {
-            type: "string",
-            description: "Overall sentiment: Bullish, Bearish, or Neutral."
-        },
-        confidence_score: {
-            type: "integer",
-            description: "Confidence in the prediction (1-10).",
-            minimum: 1,
-            maximum: 10
-        },
-        trend_prediction: {
-            type: "string",
-            description: "Short-term trend prediction for the next 4-8 hours."
-        },
-        justification: {
-            type: "string",
-            description: "A brief justification based on the provided daily price data."
-        },
-        support_levels: {
-            type: "array",
-            items: { type: "number" },
-            description: "2-3 key support price levels."
-        },
-        resistance_levels: {
-            type: "array",
-            items: { type: "number" },
-            description: "2-3 key resistance price levels."
-        },
-        trade_idea: {
-            type: "string",
-            description: "A hypothetical trade setup."
-        }
-    },
-    required: ["sentiment", "confidence_score", "trend_prediction", "justification", "support_levels", "resistance_levels", "trade_idea"]
+// Function to fetch historical data from Deriv
+const getTickHistory = (asset, timeframe, count = 60) => {
+    return new Promise((resolve, reject) => {
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({
+                ticks_history: asset,
+                style: "candles",
+                end: "latest",
+                count: count,
+                granularity: parseInt(timeframe), // Timeframe in seconds
+            }));
+        };
+
+        ws.onmessage = (msg) => {
+            const data = JSON.parse(msg.data);
+            if (data.error) {
+                reject(data.error.message);
+            } else if (data.msg_type === 'candles') {
+                resolve(data.candles);
+                ws.close();
+            }
+        };
+
+        ws.onerror = (err) => {
+            reject(err);
+        };
+    });
 };
 
 
-/**
- * Fetches historical 1-day candles from Deriv's WebSocket API.
- * @param {string} asset - The asset symbol (e.g., R_100).
- * @returns {Promise<object>} - Object containing currentPrice, priceSummary for AI, and chartData.
- */
-function fetchDerivCandles(asset) {
-    return new Promise((resolve, reject) => {
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-        
-        let candles_data = [];
-
-        ws.on('open', () => {
-            const candleRequest = {
-                "ticks_history": asset,
-                "end": "latest",
-                "start": 1, 
-                "style": "candles",
-                "granularity": 86400, // 1 Day candles
-                "count": 30 // 30 candles for analysis and chart
-            };
-            ws.send(JSON.stringify(candleRequest));
-        });
-
-        ws.on('message', (data) => {
-            const response = JSON.parse(data);
-
-            if (response.error) {
-                ws.close();
-                return reject(new Error(`Deriv API Error: ${response.error.message}`));
-            }
-
-            if (response.msg_type === 'candles' && response.candles) {
-                candles_data = response.candles.map(c => ({
-                    epoch: c.epoch,
-                    date: new Date(c.epoch * 1000).toISOString().split('T')[0],
-                    open: parseFloat(c.open),
-                    high: parseFloat(c.high),
-                    low: parseFloat(c.low),
-                    close: parseFloat(c.close)
-                }));
-                
-                const currentPrice = candles_data.length > 0 ? candles_data[candles_data.length - 1].close : 'N/A';
-                
-                // Prepare a summary of the last 5 candles for the AI prompt
-                const lastFiveCandles = candles_data.slice(-5).map(c => ({
-                    date: c.date,
-                    open: c.open.toFixed(5),
-                    close: c.close.toFixed(5)
-                }));
-
-                ws.close();
-                resolve({ 
-                    currentPrice, 
-                    priceSummary: JSON.stringify(lastFiveCandles, null, 2), 
-                    chartData: candles_data 
-                });
-            }
-        });
-
-        ws.on('error', (err) => {
-            reject(new Error(`WebSocket connection error: ${err.message}`));
-        });
-        
-        ws.on('close', () => {
-             // Connection closed
-        });
-    });
-}
-
-// Endpoint to retrieve a list of tradable Deriv assets (for frontend population)
-app.get('/assets', async (req, res) => {
-    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    
-    ws.on('open', () => {
-        // Request the list of active symbols
-        ws.send(JSON.stringify({ "active_symbols": "brief", "product_type": "all" }));
-    });
-
-    ws.on('message', (data) => {
-        const response = JSON.parse(data);
-        ws.close();
-
-        if (response.error) {
-            return res.status(503).json({ message: `Deriv API Error fetching assets: ${response.error.message}` });
-        }
-
-        if (response.msg_type === 'active_symbols' && response.active_symbols) {
-            // Filter and map to get Synthetic and Forex symbols
-            const assets = response.active_symbols
-                .filter(s => s.market === 'synthetic_index' || s.market === 'forex')
-                .map(s => ({
-                    symbol: s.symbol,
-                    name: s.display_name
-                }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-
-            return res.json(assets);
-        }
-    });
-
-    ws.on('error', (err) => {
-        res.status(503).json({ message: `Failed to connect to Deriv WS to fetch assets: ${err.message}` });
-    });
-});
-
-
 app.post('/analyze', async (req, res) => {
-    const { asset } = req.body;
+    const { asset, timeframe } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!asset) {
-        return res.status(400).json({ message: 'Asset symbol is required.' });
+    if (!asset || !timeframe) {
+        return res.status(400).json({ message: 'Asset symbol and timeframe are required.' });
     }
-
-    if (!GEMINI_API_KEY) {
-        return res.status(500).json({ message: 'Gemini API key is not configured on the server.' });
+    if (!apiKey) {
+        return res.status(500).json({ message: 'API key is not configured.' });
     }
-
-    let marketData;
-    try {
-        marketData = await fetchDerivCandles(asset);
-    } catch (error) {
-        return res.status(503).json({ message: `Data retrieval failed: ${error.message}` });
-    }
-
-    const prompt = `
-        You are a veteran Foreign Exchange market analyst with 15 years of experience specializing in synthetic indices and forex. Your analysis must be objective, based solely on the provided market data (daily candles), and focus on short-term actionable insights.
-        
-        Analyze the asset ${asset} given the following summary of the last 5 daily candles:
-        
-        ${marketData.priceSummary}
-
-        Provide a concise but comprehensive analysis according to the required JSON schema.
-        
-        - The trend prediction is for the next 4-8 hours (intraday) based on the daily context.
-        - Key price levels should be relevant to the current trading range and have 3 decimal places for synthetic indices.
-    `;
-
-    // FIX FOR ERROR: Use the correct endpoint and structured output field
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
     try {
+        // 1. Fetch historical data
+        const candles = await getTickHistory(asset, timeframe);
+        const ohlcData = candles.map(c => `(O: ${c.open}, H: ${c.high}, L: ${c.low}, C: ${c.close})`).join(', ');
+
+        // 2. Create a more detailed prompt
+        const prompt = `
+            Analyze the forex asset ${asset} on the ${timeframe}-second timeframe.
+            Here are the last 60 OHLC candles: ${ohlcData}.
+
+            Based ONLY on this data, provide a concise but comprehensive technical analysis.
+            Format the entire response in a single block of well-structured HTML.
+
+            <h3>Overall Sentiment</h3>
+            <p>Your assessment of whether the sentiment is Bullish, Bearish, or Neutral, with a brief justification based on the provided candle data.</p>
+
+            <h3>Short-Term Trend Prediction (Next 10-15 candles)</h3>
+            <p>Your prediction for the trend with a confidence score from 1 (low) to 10 (high).</p>
+
+            <h3>Key Price Levels</h3>
+            <ul>
+                <li><strong>Support:</strong> Identify 2-3 key support levels derived from the candle data.</li>
+                <li><strong>Resistance:</strong> Identify 2-3 key resistance levels derived from the candle data.</li>
+            </ul>
+
+            <h3>Potential Trade Idea</h3>
+            <p>A brief, hypothetical trade setup (e.g., 'Consider a long position if price breaks above X with a target of Y'). This is for informational purposes only and not financial advice.</p>
+        `;
+
+        // 3. Call Gemini API
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const response = await axios.post(apiUrl, {
-            contents: [{
-                parts: [{ text: prompt }]
-            }],
-            config: {
-                // Correct field name for structured output
-                responseMimeType: "application/json",
-                responseSchema: analysisSchema
-            }
+            contents: [{ parts: [{ text: prompt }] }]
         });
         
-        const jsonResponseText = response.data.candidates[0].content.parts[0].text;
-        const analysisData = JSON.parse(jsonResponseText);
-
-        // Send the structured analysis AND the chart data back to the client
-        res.json({ 
-            analysis: analysisData,
-            chartData: marketData.chartData,
-            currentPrice: marketData.currentPrice
-        });
+        const htmlContent = response.data.candidates[0].content.parts[0].text;
+        res.json({ htmlContent });
 
     } catch (error) {
-        console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
-        res.status(500).json({ message: 'Failed to retrieve analysis from AI service. Check Gemini API key and prompt structure.' });
+        console.error('Error in /analyze:', error.response ? error.response.data : error.message);
+        res.status(500).json({ message: 'Failed to retrieve analysis from AI service.' });
     }
 });
+
 
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
