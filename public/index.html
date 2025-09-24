@@ -16,17 +16,19 @@
     <main class="container">
         <header>
             <h1>AI-Powered Forex Analysis</h1>
-            <p>Data from Alpha Vantage & analysis by Gemini 2.5 Flash</p>
+            <p>Data from Deriv.com & analysis by Gemini 2.5 Flash</p>
         </header>
 
         <section class="controls">
             <div class="control-group">
-                <label for="asset-selector">Select an Asset (e.g., EURUSD):</label>
+                <label for="asset-selector">Select a Deriv Asset (e.g., Volatility 100):</label>
                 <select id="asset-selector">
                     <option value="" disabled selected>Select an Asset...</option>
-                    <option value="EURUSD">EURUSD</option>
-                    <option value="GBPUSD">GBPUSD</option>
-                    <option value="BTCUSD">BTCUSD</option>
+                    <option value="R_100">Volatility 100 Index</option>
+                    <option value="R_75">Volatility 75 Index</option>
+                    <option value="RDBULL">Daily Reset Bull Index</option>
+                    <option value="CRASH300">Crash 300 Index</option>
+                    <option value="STEP_IND">Step Index</option>
                 </select>
             </div>
             <button id="analyze-button" disabled>Analyze Asset</button>
