@@ -4,45 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Powered Forex Analysis</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css"> 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <main class="container">
         <header>
             <h1>AI-Powered Forex Analysis</h1>
-            <p>Data from Deriv.com & analysis by Gemini 2.5 Flash</p>
+            <p>Real-time prices via Deriv.com & analysis by Gemini</p>
         </header>
 
         <section class="controls">
             <div class="control-group">
                 <label for="asset-selector">Select an Asset:</label>
                 <select id="asset-selector">
-                    <option value="" disabled selected>Loading assets...</option>
+                    <option value="">Loading assets...</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="timeframe-selector">Select Timeframe:</label>
+                <select id="timeframe-selector">
+                    <option value="900">15 Minutes</option>
+                    <option value="3600" selected>1 Hour</option>
+                    <option value="14400">4 Hours</option>
+                    <option value="86400">1 Day</option>
                 </select>
             </div>
             <button id="analyze-button" disabled>Analyze Asset</button>
         </section>
 
-        <section class="data-display">
-            <div id="price-display">Price: --</div>
+        <section class="chart-price-container">
             <div class="chart-container">
-                <canvas id="priceChart"></canvas>
+                <div id="chart"></div>
+                <div id="chart-loader" class="loader-container active"><div class="loader"></div></div>
             </div>
+            <div id="price-display">Price: --</div>
         </section>
 
         <section class="analysis-section">
             <h2>AI Analysis</h2>
             <div id="ai-analysis-output">
                 <p class="placeholder">Select an asset and click 'Analyze Asset' to get AI-powered insights.</p>
-                </div>
+            </div>
         </section>
     </main>
-    <script src="script.js"></script> 
+
+    <script src="script.js"></script>
 </body>
 </html>
