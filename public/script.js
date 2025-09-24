@@ -4,44 +4,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const analyzeButton = document.getElementById('analyze-button');
     const priceDisplay = document.getElementById('price-display');
     const aiAnalysisOutput = document.getElementById('ai-analysis-output');
-    const chartContainer = document.getElementById('chart');
-    const chartLoader = document.getElementById('chart-loader');
+    const chartContainer = document.getElementById('chart-container');
 
-    // --- Chart Setup ---
-    const chart = LightweightCharts.createChart(chartContainer, {
-        width: chartContainer.clientWidth,
-        height: 400,
-        layout: { textColor: '#d1d4dc', backgroundColor: '#181c27' },
-        grid: { vertLines: { color: '#2f3241' }, horzLines: { color: '#2f3241' } },
-        timeScale: { timeVisible: true, secondsVisible: false },
-    });
-    const candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
-        wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    });
-    // --- End Chart Setup ---
-
-    const DERIV_APP_ID = 1089; // Your Deriv App ID
+    const DERIV_APP_ID = 1089;
     const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
-    let currentTickSubscriptionId = null;
 
+    let currentSubscriptionId = null;
+    let historicalData = [];
+    let chart = null;
+    let candlestickSeries = null;
+
+    // --- Chart Initialization ---
+    function initializeChart() {
+        if (chart) chart.remove(); // Remove old chart if it exists
+        
+        chart = LightweightCharts.createChart(chartContainer, {
+            width: chartContainer.clientWidth,
+            height: chartContainer.clientHeight,
+            layout: {
+                backgroundColor: '#1e1e1e',
+                textColor: '#e0e0e0',
+            },
+            grid: {
+                vertLines: { color: '#333333' },
+                horzLines: { color: '#333333' },
+            },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            rightPriceScale: { borderColor: '#333333' },
+            timeScale: { borderColor: '#333333' },
+        });
+
+        candlestickSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderDownColor: '#ef5350',
+            borderUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+            wickUpColor: '#26a69a',
+        });
+    }
+
+    // --- WebSocket Event Handlers ---
     ws.onopen = () => {
-        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+        console.log("Connected to Deriv WebSocket API.");
+        ws.send(JSON.stringify({
+            active_symbols: "brief",
+            product_type: "basic"
+        }));
     };
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.error) return;
+
+        if (data.error) {
+            console.error("WebSocket Error:", data.error.message);
+            return;
+        }
 
         if (data.msg_type === 'active_symbols') {
-            // FIX 1: Assign all assets directly without filtering.
-            let allAssets = data.active_symbols;
-
-            // FIX 2: Sort the assets array alphabetically by their display name.
-            allAssets.sort((a, b) => a.display_name.localeCompare(b.display_name));
-
+            const forexAssets = data.active_symbols.filter(a => a.market === 'forex' || a.market === 'synthetic_index');
             assetSelector.innerHTML = '<option value="">Select an asset</option>';
-            allAssets.forEach(asset => {
+            forexAssets.forEach(asset => {
                 const option = document.createElement('option');
                 option.value = asset.symbol;
                 option.textContent = asset.display_name;
@@ -50,71 +73,114 @@ document.addEventListener('DOMContentLoaded', () => {
             analyzeButton.disabled = false;
         }
 
-        if (data.msg_type === 'tick') {
-            const price = data.tick.quote.toFixed(5);
-            priceDisplay.textContent = `Price: ${price}`;
-            currentTickSubscriptionId = data.subscription.id;
+        if (data.msg_type === 'history') {
+            historicalData = data.candles.map(c => ({
+                time: c.epoch,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+            }));
+            candlestickSeries.setData(historicalData);
+            chart.timeScale().fitContent();
         }
 
-        if (data.msg_type === 'candles') {
-            const candleData = data.candles.map(candle => ({
-                time: candle.epoch,
-                open: candle.open,
-                high: candle.high,
-                low: candle.low,
-                close: candle.close,
-            }));
-            candleSeries.setData(candleData);
-            chartLoader.classList.remove('active');
+        if (data.msg_type === 'tick') {
+            const tick = data.tick;
+            priceDisplay.textContent = `Price: ${tick.quote.toFixed(5)}`;
+            const lastCandle = historicalData[historicalData.length - 1];
+            
+            if (lastCandle && tick.epoch > lastCandle.time) {
+                // Update the last candle in real-time
+                candlestickSeries.update({
+                    time: tick.epoch,
+                    open: lastCandle.close,
+                    high: Math.max(lastCandle.high, tick.quote),
+                    low: Math.min(lastCandle.low, tick.quote),
+                    close: tick.quote,
+                });
+            }
+            if (tick.subscription) {
+                currentSubscriptionId = tick.subscription.id;
+            }
         }
     };
-    
-    // Function to fetch and display chart data
-    const updateChartAndPrice = () => {
-        const selectedAsset = assetSelector.value;
-        const selectedTimeframe = timeframeSelector.value;
-        priceDisplay.textContent = 'Price: --';
 
-        if (currentTickSubscriptionId) {
-            ws.send(JSON.stringify({ forget: currentTickSubscriptionId }));
-            currentTickSubscriptionId = null;
+    ws.onclose = () => {
+        console.log("Disconnected from Deriv WebSocket API.");
+        priceDisplay.textContent = "Connection lost. Please refresh.";
+    };
+    ws.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        priceDisplay.textContent = "Connection error.";
+    };
+
+    // --- Data Subscription Logic ---
+    function subscribeToData() {
+        const selectedAsset = assetSelector.value;
+        const selectedTimeframe = parseInt(timeframeSelector.value);
+        priceDisplay.textContent = 'Fetching data...';
+        historicalData = [];
+        
+        if (currentSubscriptionId) {
+            ws.send(JSON.stringify({ forget: currentSubscriptionId }));
+            currentSubscriptionId = null;
         }
 
         if (selectedAsset) {
-            chartLoader.classList.add('active');
-            // Subscribe to real-time price ticks
-            ws.send(JSON.stringify({ ticks: selectedAsset, subscribe: 1 }));
-            // Get history for the chart
+            // Request historical data (candles)
             ws.send(JSON.stringify({
                 ticks_history: selectedAsset,
-                style: "candles",
+                adjust_start_time: 1,
+                count: 100, // Fetch more for chart history
                 end: "latest",
-                count: 60,
-                granularity: parseInt(selectedTimeframe),
+                style: "candles",
+                granularity: selectedTimeframe
+            }));
+
+            // Subscribe to live ticks for real-time updates
+            ws.send(JSON.stringify({
+                ticks: selectedAsset,
+                subscribe: 1
             }));
         } else {
-             candleSeries.setData([]); // Clear chart if no asset
+            priceDisplay.textContent = 'Select an asset to view data';
+            if (candlestickSeries) candlestickSeries.setData([]);
         }
-    };
-    
-    assetSelector.addEventListener('change', updateChartAndPrice);
-    timeframeSelector.addEventListener('change', updateChartAndPrice);
+    }
+
+    // --- Event Listeners ---
+    assetSelector.addEventListener('change', subscribeToData);
+    timeframeSelector.addEventListener('change', subscribeToData);
 
     analyzeButton.addEventListener('click', async () => {
         const selectedAsset = assetSelector.value;
-        const selectedTimeframe = timeframeSelector.value;
+        const selectedTimeframe = timeframeSelector.options[timeframeSelector.selectedIndex].text;
+
         if (!selectedAsset) {
             alert("Please select an asset first.");
             return;
         }
 
-        aiAnalysisOutput.innerHTML = '<div class="loader-container active"><div class="loader"></div></div>';
+        if (historicalData.length < 28) {
+             alert("Not enough historical data to perform analysis. Please wait or choose a different asset/timeframe.");
+            return;
+        }
+
+        aiAnalysisOutput.innerHTML = '<div class="loader"></div>';
+
+        // Get the last 28 candles for analysis
+        const recentCandles = historicalData.slice(-28);
 
         try {
             const response = await fetch('/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ asset: selectedAsset, timeframe: selectedTimeframe })
+                body: JSON.stringify({
+                    asset: selectedAsset,
+                    timeframe: selectedTimeframe,
+                    candles: recentCandles
+                })
             });
 
             if (!response.ok) {
@@ -131,8 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Resize chart with window
+    // Initial chart setup
+    initializeChart();
     window.addEventListener('resize', () => {
-        chart.resize(chartContainer.clientWidth, 400);
+        if(chart) chart.resize(chartContainer.clientWidth, chartContainer.clientHeight);
     });
 });
