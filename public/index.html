@@ -21,21 +21,16 @@
 
         <section class="controls">
             <div class="control-group">
-                <label for="asset-selector">Select a Deriv Asset (e.g., Volatility 100):</label>
+                <label for="asset-selector">Select an Asset:</label>
                 <select id="asset-selector">
-                    <option value="" disabled selected>Select an Asset...</option>
-                    <option value="R_100">Volatility 100 Index</option>
-                    <option value="R_75">Volatility 75 Index</option>
-                    <option value="RDBULL">Daily Reset Bull Index</option>
-                    <option value="CRASH300">Crash 300 Index</option>
-                    <option value="STEP_IND">Step Index</option>
+                    <option value="" disabled selected>Loading assets...</option>
                 </select>
             </div>
             <button id="analyze-button" disabled>Analyze Asset</button>
         </section>
 
         <section class="data-display">
-            <div id="price-display">Current Price: --</div>
+            <div id="price-display">Price: --</div>
             <div class="chart-container">
                 <canvas id="priceChart"></canvas>
             </div>
@@ -45,8 +40,7 @@
             <h2>AI Analysis</h2>
             <div id="ai-analysis-output">
                 <p class="placeholder">Select an asset and click 'Analyze Asset' to get AI-powered insights.</p>
-                <div class="loader" style="display: none;"></div>
-            </div>
+                </div>
         </section>
     </main>
     <script src="script.js"></script> 
