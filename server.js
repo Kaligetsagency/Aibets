@@ -28,14 +28,14 @@ app.post('/analyze', async (req, res) => {
     }
 
     const prompt = `
-        Analyze the forex asset ${asset} based on current market conditions. 
+        Analyze the forex asset ${asset} based on hysterical and current market conditions. 
         Provide a concise but comprehensive analysis covering the following points.
         Format the entire response in a single block of well-structured HTML.
 
         <h3>Overall Sentiment</h3>
         <p>Your assessment of whether the sentiment is Bullish, Bearish, or Neutral, with a brief justification.</p>
         
-        <h3>Short-Term Trend Prediction (Next 4-8 hours)</h3>
+        <h3>Short-Term Trend Prediction (Next 5-60 minutes)</h3>
         <p>Your prediction for the trend with a confidence score from 1 (low) to 10 (high).</p>
         
         <h3>Key Price Levels</h3>
@@ -45,7 +45,7 @@ app.post('/analyze', async (req, res) => {
         </ul>
 
         <h3>Potential Trade Idea</h3>
-        <p>A brief, hypothetical trade setup (e.g., 'Consider a long position if price breaks above X with a target of Y'). This is for informational purposes only and not financial advice.</p>
+        <p>A brief, precise trade setup (e.g., 'Consider a long position if price breaks above X with a target of Y'). This is for informational purposes only and not financial advice.</p>
     `;
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
