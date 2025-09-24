@@ -154,7 +154,7 @@ header p {
     display: inline-block;
     box-sizing: border-box;
     animation: rotation 1s linear infinite;
-    position: absolute; /* Center loader over output */
+    position: absolute; 
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -219,7 +219,7 @@ header p {
     margin-bottom: 0.25rem;
     border-radius: 4px;
     border-left: 3px solid var(--accent-color);
-    font-family: 'Courier New', Courier, monospace; /* Monospace for price numbers */
+    font-family: 'Courier New', Courier, monospace;
 }
 
 /* Trade Idea Box */
@@ -233,4 +233,4 @@ header p {
 
 .trade-idea-box strong {
     color: var(--accent-color);
-}
+        }
