@@ -47,11 +47,11 @@ header {
 header h1 {
     font-size: 2rem;
     font-weight: 700;
+    margin-bottom: 0.5rem;
 }
 
 header p {
     color: var(--secondary-text-color);
-    margin-top: 0.5rem;
 }
 
 .controls {
@@ -69,6 +69,7 @@ header p {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
+    color: var(--secondary-text-color);
 }
 
 #asset-selector {
@@ -76,28 +77,30 @@ header p {
     padding: 0.75rem;
     border-radius: 6px;
     border: 1px solid var(--border-color);
-    background-color: var(--background-color);
+    background-color: #2a2a2a;
     color: var(--primary-text-color);
     font-size: 1rem;
+    cursor: pointer;
 }
 
 #analyze-button {
     padding: 0.75rem 1.5rem;
-    background-color: var(--accent-color);
-    color: white;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
+    background-color: var(--accent-color);
+    color: #ffffff;
     font-size: 1rem;
     font-weight: 600;
-    transition: background-color 0.2s;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
 }
 
-#analyze-button:hover:not([disabled]) {
+#analyze-button:hover:not(:disabled) {
     background-color: var(--accent-hover-color);
 }
 
 #analyze-button:disabled {
+    background-color: #333;
     cursor: not-allowed;
     opacity: 0.6;
 }
@@ -106,7 +109,7 @@ header p {
     text-align: center;
     font-size: 1.75rem;
     font-weight: 600;
-    margin-bottom: 1rem;
+    margin-bottom: 2rem;
     padding: 1rem;
     background-color: var(--background-color);
     border-radius: 8px;
@@ -144,17 +147,17 @@ header p {
     min-height: 120px;
 }
 
-/* NEW: Loader overlay positioning */
+/* NEW: Loader positioning for centering */
 .loader {
     width: 48px;
     height: 48px;
     border: 5px solid var(--primary-text-color);
     border-bottom-color: transparent;
     border-radius: 50%;
-    display: inline-block;
+    display: none; /* Hidden by default */
     box-sizing: border-box;
     animation: rotation 1s linear infinite;
-    position: absolute; 
+    position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -233,4 +236,14 @@ header p {
 
 .trade-idea-box strong {
     color: var(--accent-color);
-        }
+}
+
+@media (min-width: 600px) {
+    .controls {
+        flex-direction: row;
+        align-items: flex-end;
+    }
+    .control-group {
+        flex-grow: 1;
+    }
+    }
