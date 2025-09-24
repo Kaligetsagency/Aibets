@@ -8,37 +8,45 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
     <main class="container">
         <header>
             <h1>AI-Powered Forex Analysis</h1>
-            <p>Real-time prices via Deriv.com & analysis by Gemini 2.5 Flash</p>
+            <p>Data from Alpha Vantage & analysis by Gemini 2.5 Flash</p>
         </header>
 
         <section class="controls">
             <div class="control-group">
-                <label for="asset-selector">Select an Asset:</label>
+                <label for="asset-selector">Select an Asset (e.g., EURUSD):</label>
                 <select id="asset-selector">
-                    <option value="">Loading assets...</option>
+                    <option value="" disabled selected>Select an Asset...</option>
+                    <option value="EURUSD">EURUSD</option>
+                    <option value="GBPUSD">GBPUSD</option>
+                    <option value="BTCUSD">BTCUSD</option>
                 </select>
             </div>
             <button id="analyze-button" disabled>Analyze Asset</button>
         </section>
 
         <section class="data-display">
-            <div id="price-display">Price: --</div>
+            <div id="price-display">Current Price: --</div>
+            <div class="chart-container">
+                <canvas id="priceChart"></canvas>
+            </div>
         </section>
 
         <section class="analysis-section">
             <h2>AI Analysis</h2>
             <div id="ai-analysis-output">
                 <p class="placeholder">Select an asset and click 'Analyze Asset' to get AI-powered insights.</p>
+                <div class="loader" style="display: none;"></div>
             </div>
         </section>
     </main>
-
-    <script src="script.js"></script>
+    <script src="script.js"></script> 
 </body>
 </html>
-                    
