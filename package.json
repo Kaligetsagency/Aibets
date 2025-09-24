@@ -1,7 +1,7 @@
 {
-  "name": "aifx",
+  "name": "ai-forex-analyzer",
   "version": "1.0.0",
-  "description": "A Node.js application for trading analysis using Deriv and DeepSeek APIs.",
+  "description": "An AI-powered forex asset analysis web app using Deriv.com and Gemini API.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,10 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "ws": "^8.14.2",
-    "node-fetch": "^2.7.0",
-    "technicalindicators": "^3.1.0"
+    "@deriv/deriv-api": "^1.0.17",
+    "@google/generative-ai": "^0.15.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
   }
 }
