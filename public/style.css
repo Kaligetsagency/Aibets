@@ -1,154 +1,144 @@
-/* public/style.css */
-/* Basic styling for the trading analysis application. */
+:root {
+    --primary-bg: #1a1a2e;
+    --secondary-bg: #16213e;
+    --card-bg: #0f3460;
+    --text-primary: #e94560;
+    --text-secondary: #dcdcdc;
+    --accent-color: #16c79a;
+    --border-color: #e94560;
+    --sentiment-bullish: #2ecc71;
+    --sentiment-bearish: #e74c3c;
+    --sentiment-neutral: #f1c40f;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
 body {
-    font-family: 'Roboto', sans-serif;
-    background-color: #f0f2f5;
-    color: #333;
-    margin: 0;
-    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--primary-bg);
+    color: var(--text-secondary);
+    line-height: 1.6;
     display: flex;
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
+    padding: 20px;
 }
 
 .container {
     width: 100%;
-    max-width: 600px;
-    background-color: #ffffff;
-    padding: 30px;
+    max-width: 900px;
+    background-color: var(--secondary-bg);
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
 }
 
 header {
+    background-color: var(--card-bg);
+    padding: 25px;
     text-align: center;
-    margin-bottom: 30px;
-    border-bottom: 1px solid #e0e0e0;
-    padding-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
 }
 
 header h1 {
-    margin: 0;
-    font-size: 2rem;
-    font-weight: 700;
-    color: #1a237e;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-size: 2em;
 }
 
-header p {
-    margin-top: 8px;
-    color: #555;
-    font-size: 1rem;
+main {
+    padding: 25px;
 }
 
 .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
     margin-bottom: 30px;
+    text-align: center;
 }
 
-.select-group {
-    display: flex;
-    flex-direction: column;
+.controls label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+    font-size: 1.1em;
 }
 
-.select-group label {
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #333;
-}
-
-select {
+#asset-select {
     width: 100%;
+    max-width: 400px;
     padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    background-color: #f9f9f9;
-    font-size: 1rem;
-    transition: border-color 0.3s;
-}
-
-select:focus {
-    outline: none;
-    border-color: #1a237e;
-    box-shadow: 0 0 0 2px rgba(26, 35, 126, 0.2);
-}
-
-button {
-    padding: 14px 20px;
-    border: none;
-    border-radius: 8px;
-    background-color: #1a237e;
-    color: white;
-    font-size: 1rem;
-    font-weight: 500;
+    background-color: var(--primary-bg);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1em;
     cursor: pointer;
-    transition: background-color 0.3s, transform 0.2s;
+    transition: all 0.3s ease;
 }
 
-button:hover {
-    background-color: #283593;
-    transform: translateY(-2px);
+#asset-select:hover, #asset-select:focus {
+    border-color: var(--accent-color);
+    outline: none;
 }
 
-button:active {
-    transform: translateY(0);
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
 }
 
-#results-container {
-    background-color: #f9f9f9;
+.card {
+    background-color: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
-    border: 1px solid #e0e0e0;
-}
-
-#results-container.results-hidden {
-    display: none;
-}
-
-#results-container h2 {
-    margin-top: 0;
     text-align: center;
-    color: #1a237e;
-    font-size: 1.5rem;
-    margin-bottom: 20px;
 }
 
-.result-item {
-    padding: 12px 0;
-    border-bottom: 1px solid #e0e0e0;
-    font-size: 1.1rem;
+.card h2 {
+    color: var(--text-primary);
+    margin-bottom: 15px;
+    font-size: 1.2em;
 }
 
-.result-item:last-child {
-    border-bottom: none;
+.card p {
+    font-size: 1.1em;
+    font-weight: bold;
 }
 
-.result-item strong {
-    color: #333;
-    margin-right: 10px;
+.details h2 {
+    text-align: left;
 }
 
-.result-item span {
-    color: #00695c;
-    font-weight: 500;
+#details-result {
+    text-align: left;
 }
 
-/* Loader styles */
-.loader-hidden {
-    display: none;
+#details-result h3 {
+    color: var(--accent-color);
+    margin-top: 15px;
+}
+#details-result ul {
+    list-style-position: inside;
+    padding-left: 10px;
 }
 
-#loader {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #1a237e;
+.sentiment-bullish { color: var(--sentiment-bullish); }
+.sentiment-bearish { color: var(--sentiment-bearish); }
+.sentiment-neutral { color: var(--sentiment-neutral); }
+
+.loader {
+    border: 5px solid var(--secondary-bg);
+    border-top: 5px solid var(--accent-color);
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     animation: spin 1s linear infinite;
-    margin: 20px auto;
+    margin: 40px auto;
 }
 
 @keyframes spin {
@@ -156,61 +146,25 @@ button:active {
     100% { transform: rotate(360deg); }
 }
 
-/* Error message styles */
-.error-hidden {
+.hidden {
     display: none;
 }
 
-#error-message {
-    text-align: center;
-    color: #d32f2f;
-    background-color: #ffebee;
+.error-message {
+    background-color: #e74c3c20;
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
     padding: 15px;
     border-radius: 8px;
+    text-align: center;
     margin-top: 20px;
 }
 
-/* Custom Message Box Styles */
-.message-box {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: #fff;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
+footer {
+    background-color: var(--card-bg);
+    padding: 15px;
     text-align: center;
-    min-width: 280px;
-    max-width: 90%;
-}
-
-.message-box p {
-    margin-bottom: 20px;
-    font-size: 1.1rem;
-    color: #333;
-}
-
-.message-box button {
-    padding: 10px 20px;
-    background-color: #1a237e;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s;
-}
-
-.message-box button:hover {
-    background-color: #283593;
-}
-
-.message-box.error {
-    border: 2px solid #d32f2f;
-}
-
-.message-box.warning {
-    border: 2px solid #fbc02d;
+    font-size: 0.9em;
+    color: #aaa;
+    border-top: 1px solid var(--border-color);
 }
