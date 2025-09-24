@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const symbol = data.tick.symbol;
             const price = data.tick.quote.toFixed(5);
             priceDisplay.textContent = `Price: ${price}`;
-            if (currentTickSubscriptionId) {
+            if (data.tick.subscription) {
                  currentTickSubscriptionId = data.tick.subscription.id;
             }
         }
@@ -91,7 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
         aiAnalysisOutput.innerHTML = '<div class="loader"></div>';
 
         try {
-            const response = await fetch('http://localhost:3000/analyze', {
+            // --- THIS IS THE FIX ---
+            // Use a relative URL instead of an absolute one.
+            const response = await fetch('/analyze', {
+            // ---------------------
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -113,4 +116,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-                
+
+        
