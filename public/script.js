@@ -4,8 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const priceDisplay = document.getElementById('price-display');
     const analysisOutput = document.getElementById('ai-analysis-output');
     const chartCanvas = document.getElementById('priceChart');
-    const loader = document.querySelector('.loader');
-
+    const loader = document.createElement('div');
+    loader.className = 'loader'; // Use CSS loader class
+    
     let priceChart = null; // Variable to hold the Chart.js instance
 
     // Enable the button once an asset is selected
@@ -25,6 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loader.style.display = 'block';
         analyzeButton.disabled = true;
         priceDisplay.textContent = 'Current Price: Fetching Data...';
+        
+        // Use the selected option's text for chart title (e.g., "Volatility 100 Index")
+        const assetName = assetSelector.options[assetSelector.selectedIndex].text;
 
         try {
             // 2. Call the new server endpoint
@@ -43,17 +47,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const { analysis, chartData, currentPrice } = data;
 
             // 3. Update Price Display
-            priceDisplay.textContent = `Current Price: ${currentPrice}`;
+            priceDisplay.textContent = `Current Price: ${parseFloat(currentPrice).toFixed(3)}`;
 
             // 4. Render Chart
-            renderChart(chartData);
+            renderChart(chartData, assetName);
 
             // 5. Render Structured Analysis
             renderAnalysis(analysis);
 
         } catch (error) {
             console.error('Analysis failed:', error);
-            analysisOutput.innerHTML = `<p class="placeholder" style="color: var(--bearish-color);">Error: ${error.message}. Please check your API keys or try a different asset.</p>`;
+            analysisOutput.innerHTML = `<p class="placeholder" style="color: var(--bearish-color);">Error: ${error.message}. Please check your server logs, API keys, or connection.</p>`;
             priceDisplay.textContent = 'Current Price: --';
             if (priceChart) priceChart.destroy();
         } finally {
@@ -63,29 +67,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderChart(data) {
+    function renderChart(data, assetName) {
         if (priceChart) {
             priceChart.destroy(); // Destroy previous chart instance
         }
-
-        // Prepare data for Chart.js
+        
+        // Chart.js requires specific data format for candlestick-like representation
         const chartDataPoints = data.map(d => ({
-            x: new Date(d.date),
-            y: [d.open, d.high, d.low, d.close]
+            x: new Date(d.epoch * 1000), // Convert epoch to Date
+            // Chart.js boxplot or bar chart uses [min, max] or [open, close]
+            // We use [low, high] for the full range and color the bar based on open/close
+            y: [d.low, d.high] 
         }));
         
-        // Define colors based on price change
-        const colors = chartDataPoints.map(d => (d.y[3] >= d.y[0] ? 'rgba(76, 175, 80, 1)' : 'rgba(244, 67, 54, 1)'));
+        // Define colors based on open vs close (Bullish/Bearish)
+        const colors = data.map(d => (d.close >= d.open ? 'rgba(76, 175, 80, 0.8)' : 'rgba(244, 67, 54, 0.8)'));
 
         priceChart = new Chart(chartCanvas, {
-            type: 'bar', // Using bar chart as a simple candlestick substitute with Chart.js
+            type: 'bar', 
             data: {
                 datasets: [{
-                    label: 'Price Action (Daily)',
+                    label: 'Daily Price Action',
                     data: chartDataPoints,
                     backgroundColor: colors,
                     borderColor: colors,
                     borderWidth: 1,
+                    barPercentage: 1.0, // Make bars look like candles
+                    categoryPercentage: 1.0
                 }]
             },
             options: {
@@ -95,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     x: {
                         type: 'time',
                         time: { unit: 'day' },
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                        grid: { display: false },
                         ticks: { color: 'var(--secondary-text-color)' }
                     },
                     y: {
@@ -108,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: `${assetSelector.value} Daily Price Action`,
+                        text: `${assetName} Daily Candles (Last 30 days)`,
                         color: 'var(--primary-text-color)'
                     }
                 }
@@ -119,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAnalysis(analysis) {
         // Normalize sentiment for CSS class (lowercase and no special chars)
         const sentimentClass = analysis.sentiment.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const assetName = assetSelector.options[assetSelector.selectedIndex].text;
+
 
         analysisOutput.innerHTML = `
             <div class="analysis-header">
@@ -130,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
 
-            <h3>Trend Prediction (Next 4-8 hours)</h3>
+            <h3>Trend Prediction (Next 4-8 hours for ${assetName})</h3>
             <p>${analysis.trend_prediction}</p>
 
             <h3>Justification</h3>
@@ -141,13 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div>
                     <h4>Support:</h4>
                     <ul class="levels-list">
-                        ${analysis.support_levels.map(level => `<li>${level.toFixed(5)}</li>`).join('')}
+                        ${analysis.support_levels.map(level => `<li>${parseFloat(level).toFixed(3)}</li>`).join('')}
                     </ul>
                 </div>
                 <div>
                     <h4>Resistance:</h4>
                     <ul class="levels-list">
-                        ${analysis.resistance_levels.map(level => `<li>${level.toFixed(5)}</li>`).join('')}
+                        ${analysis.resistance_levels.map(level => `<li>${parseFloat(level).toFixed(3)}</li>`).join('')}
                     </ul>
                 </div>
             </div>
@@ -160,6 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Initial load, populate assets (already done in index.html for simplicity, but could be an API call)
-    analyzeButton.disabled = true; 
+    // Set initial placeholder assets
+    analyzeButton.disabled = !assetSelector.value; 
 });
