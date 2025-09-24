@@ -1,172 +1,116 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const assetSelect = document.getElementById('asset-select');
-    const analysisContainer = document.getElementById('analysis-container');
-    const loader = document.getElementById('loader');
-    const results = document.getElementById('results');
-    const forecastResult = document.getElementById('forecast-result');
-    const sentimentResult = document.getElementById('sentiment-result');
-    const reversalResult = document.getElementById('reversal-result');
-    const detailsResult = document.getElementById('details-result');
-    const errorMessage = document.getElementById('error-message');
+    const assetSelector = document.getElementById('asset-selector');
+    const analyzeButton = document.getElementById('analyze-button');
+    const priceDisplay = document.getElementById('price-display');
+    const aiAnalysisOutput = document.getElementById('ai-analysis-output');
 
-    let derivWs;
-    let tickSubscriber;
+    const DERIV_APP_ID = 1089;
+    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
 
-    // --- 1. Fetch available assets from our server ---
-    async function populateAssetDropdown() {
-        try {
-            const response = await fetch('/api/assets');
-            if (!response.ok) {
-                throw new Error(`Server error: ${response.statusText}`);
-            }
-            const assets = await response.json();
+    let currentTickSubscriptionId = null;
 
-            assetSelect.innerHTML = '<option value="">-- Select an Asset --</option>';
-            assets.forEach(asset => {
-                const option = document.createElement('option');
-                option.value = asset.symbol;
-                option.textContent = asset.displayName;
-                assetSelect.appendChild(option);
-            });
-        } catch (error) {
-            assetSelect.innerHTML = '<option value="">Could not load assets</option>';
-            showError('Failed to fetch the list of forex assets. Please refresh the page.');
-            console.error('Error populating asset dropdown:', error);
-        }
-    }
+    ws.onopen = () => {
+        console.log("Connected to Deriv WebSocket API.");
+        // Request active symbols for forex
+        ws.send(JSON.stringify({
+            active_symbols: "brief",
+            product_type: "basic",
+            landing_company: "svg"
+        }));
+    };
 
-    // --- 2. Handle asset selection ---
-    assetSelect.addEventListener('change', async (event) => {
-        const selectedSymbol = event.target.value;
-        if (!selectedSymbol) {
-            analysisContainer.classList.add('hidden');
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.error) {
+            console.error("WebSocket Error:", data.error.message);
             return;
         }
-        
-        // Unsubscribe from previous tick stream if it exists
-        if (tickSubscriber) {
-            tickSubscriber.unsubscribe();
+
+        // Handle active_symbols response to populate dropdown
+        if (data.msg_type === 'active_symbols') {
+            const forexAssets = data.active_symbols.filter(asset => asset.market === 'forex');
+            assetSelector.innerHTML = '<option value="">Select an asset</option>'; // Clear loading text
+            forexAssets.forEach(asset => {
+                const option = document.createElement('option');
+                option.value = asset.symbol;
+                option.textContent = asset.display_name;
+                assetSelector.appendChild(option);
+            });
+             analyzeButton.disabled = false;
         }
 
-        analysisContainer.classList.remove('hidden');
-        showLoading(true);
-        hideError();
-        resetResults();
+        // Handle tick response to display price
+        if (data.msg_type === 'tick') {
+            const symbol = data.tick.symbol;
+            const price = data.tick.quote.toFixed(5);
+            priceDisplay.textContent = `Price: ${price}`;
+            if (currentTickSubscriptionId) {
+                 currentTickSubscriptionId = data.tick.subscription.id;
+            }
+        }
+    };
 
-        connectToDerivAndFetchTick(selectedSymbol);
+    ws.onclose = () => {
+        console.log("Disconnected from Deriv WebSocket API.");
+        priceDisplay.textContent = "Connection lost. Please refresh.";
+    };
+
+    ws.onerror = (error) => {
+        console.error("WebSocket Error:", error);
+        priceDisplay.textContent = "Connection error.";
+    };
+
+    // Subscribe to ticks when user selects an asset
+    assetSelector.addEventListener('change', () => {
+        const selectedAsset = assetSelector.value;
+        priceDisplay.textContent = 'Price: --';
+
+        // Unsubscribe from previous tick stream
+        if (currentTickSubscriptionId) {
+            ws.send(JSON.stringify({ forget: currentTickSubscriptionId }));
+            currentTickSubscriptionId = null;
+        }
+
+        if (selectedAsset) {
+            ws.send(JSON.stringify({
+                ticks: selectedAsset,
+                subscribe: 1
+            }));
+        }
     });
 
-    // --- 3. Connect to Deriv WebSocket and get real-time data ---
-    function connectToDerivAndFetchTick(symbol) {
-        if (!derivWs || derivWs.readyState !== WebSocket.OPEN) {
-            derivWs = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+    // Handle AI analysis request
+    analyzeButton.addEventListener('click', async () => {
+        const selectedAsset = assetSelector.value;
+        if (!selectedAsset) {
+            alert("Please select an asset first.");
+            return;
         }
 
-        derivWs.onopen = () => {
-            console.log('Deriv WebSocket connected.');
-            derivWs.send(JSON.stringify({ ticks: symbol }));
-        };
+        aiAnalysisOutput.innerHTML = '<div class="loader"></div>';
 
-        derivWs.onmessage = async (msg) => {
-            const data = JSON.parse(msg.data);
-
-            if (data.error) {
-                console.error('Deriv API Error:', data.error.message);
-                showError(`Error from Deriv API: ${data.error.message}`);
-                showLoading(false);
-                return;
-            }
-
-            if (data.msg_type === 'tick') {
-                console.log('Tick data received:', data.tick);
-                
-                // Once we have the first tick, send it for analysis
-                await getAIAnalysis(data.tick);
-                
-                // Unsubscribe to prevent continuous analysis on every tick
-                derivWs.send(JSON.stringify({ "forget": data.subscription.id }));
-            }
-        };
-        
-        derivWs.onerror = (error) => {
-            console.error('Deriv WebSocket error:', error);
-            showError('A WebSocket connection error occurred with the data provider.');
-            showLoading(false);
-        };
-    }
-
-    // --- 4. Send data to our server for AI analysis ---
-    async function getAIAnalysis(assetData) {
         try {
-            const response = await fetch('/api/analyze-asset', {
+            const response = await fetch('http://localhost:3000/analyze', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ assetData }),
+                body: JSON.stringify({ asset: selectedAsset })
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to get analysis.');
+                throw new Error(errorData.message || 'Failed to get analysis.');
             }
 
             const analysis = await response.json();
-            updateUI(analysis);
+            aiAnalysisOutput.innerHTML = analysis.htmlContent;
 
         } catch (error) {
-            console.error('Error getting AI analysis:', error);
-            showError(error.message);
-        } finally {
-            showLoading(false);
+            console.error("Analysis Error:", error);
+            aiAnalysisOutput.innerHTML = `<p class="error">Error: Could not fetch analysis. ${error.message}</p>`;
         }
-    }
-
-    // --- 5. UI Helper Functions ---
-    function showLoading(isLoading) {
-        if (isLoading) {
-            loader.classList.remove('hidden');
-            results.classList.add('hidden');
-        } else {
-            loader.classList.add('hidden');
-            results.classList.remove('hidden');
-        }
-    }
-
-    function updateUI(analysis) {
-        forecastResult.textContent = analysis.forecast || 'N/A';
-        
-        sentimentResult.textContent = analysis.sentiment || 'N/A';
-        sentimentResult.className = ''; // Clear existing classes
-        if (analysis.sentiment) {
-            sentimentResult.classList.add(`sentiment-${analysis.sentiment.toLowerCase()}`);
-        }
-
-        reversalResult.textContent = analysis.reversalAlerts ? '🚨 Yes' : 'No';
-        
-        // Use the 'marked' library to parse markdown from the API
-        detailsResult.innerHTML = marked.parse(analysis.analysisDetails || '<p>No detailed analysis available.</p>');
-    }
-    
-    function resetResults() {
-        forecastResult.textContent = '--';
-        sentimentResult.textContent = '--';
-        sentimentResult.className = 'sentiment-neutral';
-        reversalResult.textContent = '--';
-        detailsResult.innerHTML = '<p>Select an asset to see the detailed analysis.</p>';
-    }
-
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove('hidden');
-        analysisContainer.classList.add('hidden');
-    }
-
-    function hideError() {
-        errorMessage.classList.add('hidden');
-    }
-
-
-    // --- Initial Load ---
-    populateAssetDropdown();
+    });
 });
+                
