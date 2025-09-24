@@ -26,10 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTickSubscriptionId = null;
 
     ws.onopen = () => {
-        // --- THIS IS THE FIX ---
-        // Make the request more specific to get a reliable list of forex assets.
-        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic", landing_company: "svg" }));
-        // ----------------------
+        ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
     };
 
     ws.onmessage = (event) => {
@@ -37,10 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.error) return;
 
         if (data.msg_type === 'active_symbols') {
-            // Filter for assets where the market is 'forex'.
-            const forexAssets = data.active_symbols.filter(asset => asset.market === 'forex');
+            // FIX 1: Assign all assets directly without filtering.
+            let allAssets = data.active_symbols;
+
+            // FIX 2: Sort the assets array alphabetically by their display name.
+            allAssets.sort((a, b) => a.display_name.localeCompare(b.display_name));
+
             assetSelector.innerHTML = '<option value="">Select an asset</option>';
-            forexAssets.forEach(asset => {
+            allAssets.forEach(asset => {
                 const option = document.createElement('option');
                 option.value = asset.symbol;
                 option.textContent = asset.display_name;
