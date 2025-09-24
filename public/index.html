@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered Forex Analysis</title>
-    <link rel="stylesheet" href="style.css"> 
+    <title>AI-Powered Market Analysis</title>
+    <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,8 +13,8 @@
 <body>
     <main class="container">
         <header>
-            <h1>AI-Powered Forex Analysis</h1>
-            <p>Real-time prices via Deriv.com & analysis by Gemini</p>
+            <h1>AI-Powered Market Analysis</h1>
+            <p>Real-time data via Deriv.com & analysis by Gemini</p>
         </header>
 
         <section class="controls">
@@ -27,7 +27,10 @@
             <div class="control-group">
                 <label for="timeframe-selector">Select Timeframe:</label>
                 <select id="timeframe-selector">
+                    <option value="60">1 Minute</option>
+                    <option value="300">5 Minutes</option>
                     <option value="900">15 Minutes</option>
+                    <option value="1800">30 Minutes</option>
                     <option value="3600" selected>1 Hour</option>
                     <option value="14400">4 Hours</option>
                     <option value="86400">1 Day</option>
@@ -36,13 +39,8 @@
             <button id="analyze-button" disabled>Analyze Asset</button>
         </section>
 
-        <section class="chart-price-container">
-            <div class="chart-container">
-                <div id="chart"></div>
-                <div id="chart-loader" class="loader-container active"><div class="loader"></div></div>
-            </div>
-            <div id="price-display">Price: --</div>
-        </section>
+        <section id="chart-container"></section>
+        <div id="price-display">Select an asset to view data</div>
 
         <section class="analysis-section">
             <h2>AI Analysis</h2>
@@ -54,4 +52,4 @@
 
     <script src="script.js"></script>
 </body>
-</html>
+    </html>
