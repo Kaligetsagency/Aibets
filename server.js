@@ -1,115 +1,77 @@
 const express = require('express');
-const cors =require('cors');
-const axios = require('axios');
+const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
-
-// Import technical indicators library
-const ti = require('technicalindicators');
+const fetch = require('node-fetch');
 
 const app = express();
 const port = 3000;
 
+// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'))); // Serve static files
+app.use(express.static(path.join(__dirname))); // Serve static files from the same directory
 
+// --- Gemini API Configuration ---
+// Note: This API key is left empty to be populated by the runtime environment.
+const API_KEY = "";
+const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=" + API_KEY;
+
+// Root route to serve the HTML file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// POST endpoint for AI analysis
 app.post('/analyze', async (req, res) => {
-    const { asset, timeframe, candles } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!asset || !timeframe || !candles || candles.length < 20) {
-        return res.status(400).json({ message: 'Asset, timeframe, and sufficient candle data are required.' });
-    }
-    if (!apiKey) {
-        return res.status(500).json({ message: 'API key is not configured on the server.' });
+  try {
+    const { asset, data } = req.body;
+    if (!asset || !data) {
+      return res.status(400).json({ error: 'Missing asset or data in request body.' });
     }
 
-    // --- Prepare data for analysis ---
-    const closePrices = candles.map(c => c.close);
-    const highPrices = candles.map(c => c.high);
-    const lowPrices = candles.map(c => c.low);
+    console.log(`Received analysis request for ${asset} with ${data.length} ticks.`);
 
-    // --- Calculate Technical Indicators ---
-    const rsi = ti.RSI.calculate({ period: 14, values: closePrices }).slice(-1)[0];
-    const macd = ti.MACD.calculate({
-        values: closePrices,
-        fastPeriod: 12,
-        slowPeriod: 26,
-        signalPeriod: 9,
-        SimpleMAOscillator: false,
-        SimpleMASignal: false
-    }).slice(-1)[0];
-    const sma9 = ti.SMA.calculate({ period: 9, values: closePrices }).slice(-1)[0];
-    const sma21 = ti.SMA.calculate({ period: 21, values: closePrices }).slice(-1)[0];
-    const bbands = ti.BollingerBands.calculate({
-        period: 20,
-        values: closePrices,
-        stdDev: 2
-    }).slice(-1)[0];
-    
-    const latestCandle = candles[candles.length - 1];
+    // Format the tick data for the prompt
+    const formattedData = data.map(tick => `(${tick.epoch}, ${tick.price})`).join(', ');
 
-    // --- Improved Prompt Engineering ---
-    const prompt = `
-        As an expert financial market analyst, provide a concise, data-driven technical analysis for the asset ${asset} on the ${timeframe} timeframe.
-        Your analysis must be based *only* on the data provided below. Do not use any external knowledge.
-        Format the entire response in a single block of well-structured HTML.
+    // Construct the prompt for the Gemini API
+    const prompt = {
+      contents: [{
+        parts: [{
+          text: `You are an expert forex and derived indices analyst. Analyze the following real-time price tick data for the asset "${asset}" to provide a concise, one-sentence market sentiment (Bullish, Bearish, or Neutral) and a short-term price prediction for the next 5-10 minutes. The data is in (timestamp, price) format: [${formattedData}]. Focus only on sentiment and prediction, no fluff. Do not provide disclaimers.`
+        }]
+      }]
+    };
 
-        **Current Market Data:**
-        - **Latest Close Price:** ${latestCandle.close.toFixed(5)}
-        - **Latest Candlestick:** Open: ${latestCandle.open}, High: ${latestCandle.high}, Low: ${latestCandle.low}, Close: ${latestCandle.close}
-        
-        **Calculated Technical Indicators:**
-        - **RSI (14):** ${rsi.toFixed(2)}
-        - **MACD Line:** ${macd.MACD.toFixed(5)}, **Signal Line:** ${macd.signal.toFixed(5)}, **Histogram:** ${macd.histogram.toFixed(5)}
-        - **SMA (9):** ${sma9.toFixed(5)}
-        - **SMA (21):** ${sma21.toFixed(5)}
-        - **Bollinger Bands (20, 2):** Upper: ${bbands.upper.toFixed(5)}, Middle: ${bbands.middle.toFixed(5)}, Lower: ${bbands.lower.toFixed(5)}
+    const geminiResponse = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(prompt),
+    });
 
-        ---
-        
-        <h3>Overall Sentiment</h3>
-        <p>Assess the market sentiment (e.g., Bullish, Bearish, Neutral/Ranging) by interpreting the relationship between the current price, moving averages (SMA 9 vs SMA 21), and Bollinger Bands.</p>
-        
-        <h3>Indicator Analysis</h3>
-        <ul>
-            <li><strong>RSI:</strong> Is the asset overbought (>70), oversold (<30), or in a neutral zone? What momentum does this suggest?</li>
-            <li><strong>MACD:</strong> Is the MACD line above or below the signal line? Is the histogram positive or negative? What does this imply for the trend's momentum?</li>
-        </ul>
-
-        <h3>Key Price Levels</h3>
-        <p>Based on the provided Bollinger Bands and recent price action, identify the most immediate support and resistance levels.</p>
-        <ul>
-            <li><strong>Support:</strong> (e.g., Bollinger Band Lower, recent low)</li>
-            <li><strong>Resistance:</strong> (e.g., Bollinger Band Upper, recent high)</li>
-        </ul>
-
-        <h3>Potential Trade Idea</h3>
-        <p>Formulate a brief, hypothetical trade idea based *strictly* on the confluence of the indicators provided. (e.g., 'A bearish signal might be forming as the price is near the upper Bollinger Band while the RSI shows potential divergence...'). This is for informational purposes only and is not financial advice.</p>
-    `;
-
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-    try {
-        const response = await axios.post(apiUrl, {
-            contents: [{ parts: [{ text: prompt }] }]
-        });
-        
-        // Handle cases where the model might return no content
-        if (!response.data.candidates || response.data.candidates.length === 0) {
-             throw new Error("The AI model returned an empty response.");
-        }
-        
-        const htmlContent = response.data.candidates[0].content.parts[0].text;
-        res.json({ htmlContent });
-
-    } catch (error) {
-        console.error('Error calling Gemini API:', error.response ? error.response.data : error.message);
-        res.status(500).json({ message: 'Failed to retrieve analysis from AI service.' });
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error('Gemini API Error:', errorText);
+      return res.status(geminiResponse.status).json({ error: 'Failed to get analysis from AI.' });
     }
+
+    const geminiResult = await geminiResponse.json();
+    const analysisText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis available.';
+
+    console.log(`Analysis for ${asset}: ${analysisText}`);
+
+    res.json({ analysis: analysisText });
+
+  } catch (error) {
+    console.error('Server error during analysis:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
+// Start the server
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
+          
