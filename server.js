@@ -14,12 +14,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
 
-// Initialize Gemini API
+// IMPORTANT: Ensure GEMINI_API_KEY is set in your .env file
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const model = 'gemini-2.5-flash';
 
 // Deriv API Configuration
-const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089'; // Public App ID
+// Public App ID 1089 is used for testing/demo purposes
+const DERIV_WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=1089'; 
 
 // Middleware
 app.use(express.json());
@@ -41,6 +42,7 @@ function fetchOHLCData(symbol, granularity) {
 
         ws.on('open', () => {
             console.log(`WebSocket connected. Requesting ${symbol} data at ${granularity}s granularity.`);
+            // This request correctly omits the 'subscribe' field as it's a history request
             ws.send(JSON.stringify({
                 "candles_history": symbol,
                 "end": "latest",
@@ -85,7 +87,9 @@ function fetchOHLCData(symbol, granularity) {
 
 /**
  * Fetches the current market price (latest tick) from the Deriv WebSocket API.
- * @param {string} symbol - The market symbol (e.g., 'frxEURUSD').
+ * * FIX APPLIED HERE: The "subscribe" parameter is omitted for a single-shot request,
+ * resolving the "Input validation failed: subscribe" error.
+ * * @param {string} symbol - The market symbol (e.g., 'frxEURUSD').
  * @returns {Promise<number>} - A promise that resolves with the current price.
  */
 function fetchCurrentPrice(symbol) {
@@ -95,7 +99,7 @@ function fetchCurrentPrice(symbol) {
         ws.on('open', () => {
             ws.send(JSON.stringify({
                 "ticks": symbol,
-                "subscribe": 0
+                // Omitted: "subscribe": 0  <-- Removing this fixes the validation error
             }));
         });
 
@@ -115,6 +119,10 @@ function fetchCurrentPrice(symbol) {
 
         ws.on('error', (error) => {
             reject(error);
+        });
+        
+        ws.on('close', () => {
+            // console.log('WebSocket closed.');
         });
     });
 }
@@ -205,7 +213,7 @@ app.post('/analyze', async (req, res) => {
         
         console.log(`Sending prompt to Gemini for analysis of ${asset}...`);
         
-        // 4. Call Gemini API
+        // 4. Call Gemini API with JSON Schema
         const response = await ai.models.generateContent({
             model: model,
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -251,5 +259,5 @@ app.post('/analyze', async (req, res) => {
 // Start server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
-    console.log('Ensure you have a .env file with GEMINI_API_KEY set.');
+    console.log('Ensure you have a .env file with GEMINI_API_KEY set and run npm install.');
 });
