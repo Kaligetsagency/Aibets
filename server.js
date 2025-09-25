@@ -57,10 +57,11 @@ function fetchOHLCData(symbol, granularity) {
 
         ws.on('open', () => {
             console.log(`WebSocket connected. Requesting ${symbol} data at ${granularity}s granularity.`);
+            
+            // *** FIX APPLIED HERE: Removed the erroneous "start": 1 parameter. ***
             ws.send(JSON.stringify({
                 "candles_history": symbol,
                 "end": "latest",
-                "start": 1,
                 "style": "candles",
                 "count": candleCount,
                 "granularity": granularity
