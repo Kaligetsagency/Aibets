@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fetch = require('node-fetch');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+dotenv.config();
 
 const app = express();
 const port = 3000;
@@ -13,9 +17,9 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Gemini API Configuration ---
-// Note: This API key is left empty to be populated by the runtime environment.
-const API_KEY = "";
-const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
+// Get API key from environment variables
+const API_KEY = process.env.GEMINI_API_KEY;
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
 
 // POST endpoint for AI analysis
 app.post('/analyze', async (req, res) => {
@@ -23,6 +27,11 @@ app.post('/analyze', async (req, res) => {
     const { asset, data } = req.body;
     if (!asset || !data) {
       return res.status(400).json({ error: 'Missing asset or data in request body.' });
+    }
+
+    if (!API_KEY) {
+      console.error('API Key is missing. Check your .env file.');
+      return res.status(500).json({ error: 'Server configuration error: API Key is not set.' });
     }
 
     console.log(`Received analysis request for ${asset} with ${data.length} ticks.`);
@@ -49,7 +58,7 @@ app.post('/analyze', async (req, res) => {
 
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text();
-      console.error('Gemini API Error:', errorText);
+      console.error(`Gemini API Error: Status ${geminiResponse.status}, Message: ${errorText}`);
       return res.status(geminiResponse.status).json({ error: 'Failed to get analysis from AI.' });
     }
 
