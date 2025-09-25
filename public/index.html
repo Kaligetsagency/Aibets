@@ -3,53 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered Market Analysis</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <title>AI Forex Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'dark-gray-bg': '#1a202c',
+                        'card-bg': '#2d3748',
+                        'light-text': '#e2e8f0',
+                        'green-up': '#48bb78',
+                        'red-down': '#f56565',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .price-flash-up {
+            animation: flash-green 0.5s ease-in-out;
+        }
+        .price-flash-down {
+            animation: flash-red 0.5s ease-in-out;
+        }
+        @keyframes flash-green {
+            0% { background-color: transparent; }
+            50% { background-color: rgba(72, 187, 120, 0.5); }
+            100% { background-color: transparent; }
+        }
+        @keyframes flash-red {
+            0% { background-color: transparent; }
+            50% { background-color: rgba(245, 101, 101, 0.5); }
+            100% { background-color: transparent; }
+        }
+    </style>
 </head>
-<body>
-    <main class="container">
-        <header>
-            <h1>AI-Powered Market Analysis</h1>
-            <p>Real-time data via Deriv.com & analysis by Gemini</p>
+<body class="bg-dark-gray-bg text-light-text antialiased">
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-extrabold text-white tracking-tight">Real-Time Forex Analysis with AI</h1>
         </header>
 
-        <section class="controls">
-            <div class="control-group">
-                <label for="asset-selector">Select an Asset:</label>
-                <select id="asset-selector">
-                    <option value="">Loading assets...</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label for="timeframe-selector">Select Timeframe:</label>
-                <select id="timeframe-selector">
-                    <option value="60">1 Minute</option>
-                    <option value="300">5 Minutes</option>
-                    <option value="900">15 Minutes</option>
-                    <option value="1800">30 Minutes</option>
-                    <option value="3600" selected>1 Hour</option>
-                    <option value="14400">4 Hours</option>
-                    <option value="86400">1 Day</option>
-                </select>
-            </div>
-            <button id="analyze-button" disabled>Analyze Asset</button>
-        </section>
+        <!-- Asset Cards Grid -->
+        <main id="asset-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <!-- Asset cards will be generated here by JavaScript -->
+        </main>
+    </div>
 
-        <section id="chart-container"></section>
-        <div id="price-display">Select an asset to view data</div>
+    <script>
+        // Store asset data, including the last 20 ticks
+        const assetData = {};
 
-        <section class="analysis-section">
-            <h2>AI Analysis</h2>
-            <div id="ai-analysis-output">
-                <p class="placeholder">Select an asset and click 'Analyze Asset' to get AI-powered insights.</p>
-            </div>
-        </section>
-    </main>
+        const assets = [
+            'frxEURUSD', 'frxGBPUSD', 'frxUSDJPY', 'frxAUDUSD', 'frxUSDCAD', 'frxUSDCHF', 'frxNZDUSD', 'frxEURGBP', 'frxEURJPY', 'frxGBPJPY', 'frxAUDJPY', 'frxEURCAD', 'frxGBPCAD', 'frxEURAUD', 'frxGBPAUD',
+            'R_10', 'R_25', 'R_50', 'R_75', 'R_100',
+            '1HZ10V', '1HZ25V', '1HZ50V', '1HZ75V', '1HZ100V',
+            'BOOM1000', 'CRASH1000', 'JUMP100'
+        ];
 
-    <script src="script.js"></script>
+        // Function to create a new asset card
+        function createAssetCard(assetName) {
+            const grid = document.getElementById('asset-grid');
+
+            const card = document.createElement('div');
+            card.id = `card-${assetName}`;
+            card.className = 'bg-card-bg rounded-xl shadow-lg p-6 flex flex-col items-center justify-between text-center transition-all duration-300 hover:shadow-2xl';
+
+            const name = document.createElement('h2');
+            name.className = 'text-2xl font-bold mb-2 text-white';
+            name.textContent = assetName;
+
+            const priceContainer = document.createElement('div');
+            priceContainer.className = 'flex flex-col items-center mb-4';
+            const price = document.createElement('p');
+            price.id = `price-${assetName}`;
+            price.className = 'text-4xl font-mono font-bold';
+            price.textContent = '---';
+
+            priceContainer.appendChild(price);
+
+            const analyzeBtn = document.createElement('button');
+            analyzeBtn.id = `btn-${assetName}`;
+            analyzeBtn.textContent = 'Analyze';
+            analyzeBtn.className = 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-200 mt-2 disabled:opacity-50 disabled:cursor-not-allowed';
+
+            const analysisResult = document.createElement('p');
+            analysisResult.id = `analysis-${assetName}`;
+            analysisResult.className = 'text-sm font-semibold italic mt-4 text-center';
+
+            card.appendChild(name);
+            card.appendChild(priceContainer);
+            card.appendChild(analyzeBtn);
+            card.appendChild(analysisResult);
+            grid.appendChild(card);
+
+            return { price, analyzeBtn, analysisResult, card };
+        }
+
+        // Initialize cards and data structures
+        const cardElements = {};
+        assets.forEach(asset => {
+            cardElements[asset] = createAssetCard(asset);
+            assetData[asset] = { ticks: [], lastPrice: null };
+
+            cardElements[asset].analyzeBtn.addEventListener('click', () => {
+                analyzeAsset(asset);
+            });
+        });
+
+        // Function to send data to the backend for analysis
+        async function analyzeAsset(assetName) {
+            const { analyzeBtn, analysisResult } = cardElements[assetName];
+            const ticksToSend = assetData[assetName].ticks;
+
+            if (ticksToSend.length < 20) {
+                analysisResult.textContent = 'Collecting more data...';
+                return;
+            }
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = 'Analyzing...';
+            analysisResult.textContent = ''; // Clear previous result
+
+            try {
+                const response = await fetch('http://localhost:3000/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ asset: assetName, data: ticksToSend })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server responded with status ${response.status}`);
+                }
+
+                const data = await response.json();
+                analysisResult.textContent = data.analysis;
+
+            } catch (error) {
+                console.error('Analysis failed:', error);
+                analysisResult.textContent = 'Error: Analysis failed.';
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = 'Analyze';
+            }
+        }
+
+        // Deriv WebSocket Connection
+        const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
+
+        ws.onopen = function (evt) {
+            console.log("WebSocket connection established.");
+            // Subscribe to all assets on connection
+            assets.forEach(asset => {
+                ws.send(JSON.stringify({ "ticks": asset }));
+            });
+        };
+
+        ws.onmessage = function (msg) {
+            const data = JSON.parse(msg.data);
+            if (data.msg_type === 'tick') {
+                const tick = data.tick;
+                const assetName = tick.symbol;
+                const currentPrice = parseFloat(tick.quote);
+
+                // Update the UI
+                const { price } = cardElements[assetName];
+                
+                if (price) {
+                    const lastPrice = assetData[assetName].lastPrice;
+                    const priceElement = price;
+
+                    priceElement.textContent = currentPrice.toFixed(4); // Display with 4 decimal places
+
+                    // Add flash animation based on price change
+                    if (lastPrice !== null) {
+                        if (currentPrice > lastPrice) {
+                            priceElement.classList.remove('price-flash-down', 'text-red-down');
+                            priceElement.classList.add('price-flash-up', 'text-green-up');
+                        } else if (currentPrice < lastPrice) {
+                            priceElement.classList.remove('price-flash-up', 'text-green-up');
+                            priceElement.classList.add('price-flash-down', 'text-red-down');
+                        } else {
+                            // If price is the same, just set the color to white
+                            priceElement.classList.remove('text-green-up', 'text-red-down');
+                            priceElement.classList.add('text-white');
+                        }
+                        // Remove flash classes after animation to allow re-triggering
+                        setTimeout(() => {
+                            priceElement.classList.remove('price-flash-up', 'price-flash-down');
+                        }, 500);
+                    }
+                    assetData[assetName].lastPrice = currentPrice;
+
+                    // Add the new tick to the history and manage the array size
+                    const tickHistory = assetData[assetName].ticks;
+                    tickHistory.push({ epoch: tick.epoch, price: currentPrice });
+                    if (tickHistory.length > 20) {
+                        tickHistory.shift(); // Remove the oldest tick
+                    }
+                }
+            }
+        };
+
+        ws.onclose = function () {
+            console.log("WebSocket connection closed.");
+        };
+
+        ws.onerror = function (error) {
+            console.error("WebSocket error:", error);
+        };
+    </script>
 </body>
-    </html>
+                </html>
+    
