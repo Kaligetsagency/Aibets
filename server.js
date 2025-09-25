@@ -1,6 +1,7 @@
 // server.js
 import express from 'express';
 import { WebSocket } from 'ws';
+import { GoogleGenAI } from '@google/genai';
 import 'dotenv/config'; // Load environment variables from .env
 import path from 'path';
 import { fileURLToPath } from 'url';
