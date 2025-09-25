@@ -1,203 +1,428 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Forex Analysis</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
-    </script>
+    <title>Gemini Forex TP Analyzer</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --border-color: #dee2e6;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: #333;
         }
-        .price-flash-up {
-            animation: flash-green 0.3s ease-in-out;
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--card-background);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
-        .price-flash-down {
-            animation: flash-red 0.3s ease-in-out;
+
+        h1 {
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
         }
-        @keyframes flash-green {
-            0% { background-color: transparent; }
-            50% { background-color: rgba(34, 197, 94, 0.5); }
-            100% { background-color: transparent; }
+
+        .form-group {
+            margin-bottom: 20px;
         }
-        @keyframes flash-red {
-            0% { background-color: transparent; }
-            50% { background-color: rgba(239, 68, 68, 0.5); }
-            100% { background-color: transparent; }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .timeframe-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+
+        .timeframe-options label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            font-weight: normal;
+            margin-bottom: 0;
+        }
+
+        .timeframe-options input[type="checkbox"] {
+            margin-right: 5px;
+            width: auto;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: var(--secondary-color);
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading-indicator {
+            display: none;
+            text-align: center;
+            padding: 15px;
+            font-size: 1.1em;
+            color: var(--primary-color);
+        }
+
+        #results-display {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px dashed var(--border-color);
+        }
+
+        .result-card {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .asset-info {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .price-info {
+            font-size: 1.2em;
+            color: var(--success-color);
+            font-weight: 700;
+        }
+        
+        .tp-levels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .tp-level-item {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .tp-level-item:nth-child(1) { background-color: #ffe0b2; } /* TP1 */
+        .tp-level-item:nth-child(2) { background-color: #ffcc80; } /* TP2 */
+        .tp-level-item:nth-child(3) { background-color: #ffb74d; } /* TP3 */
+
+        .tp-label {
+            font-size: 0.9em;
+            color: #6d4c41;
+            font-weight: 600;
+        }
+
+        .tp-price {
+            font-size: 1.6em;
+            font-weight: bold;
+            margin-top: 5px;
+            color: #3e2723;
+        }
+        
+        .summary-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-style: italic;
         }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 sm:p-8">
+<body>
 
-    <header class="text-center mb-12">
-        <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2">Real-Time Forex Analysis with AI</h1>
-        <p class="text-lg sm:text-xl text-slate-400">Powered by Deriv's API and Gemini's AI.</p>
-    </header>
+    <div class="container">
+        <h1>✨ Gemini Forex TP Analyzer 🚀</h1>
 
-    <main class="container mx-auto">
-        <div id="assets-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <!-- Asset cards will be dynamically inserted here -->
+        <div class="form-group">
+            <label for="asset-select">1. Select Forex Asset</label>
+            <select id="asset-select">
+                <option value="" disabled selected>-- Select Asset --</option>
+                <option value="EUR/USD">EUR/USD</option>
+                <option value="GBP/USD">GBP/USD</option>
+                <option value="USD/JPY">USD/JPY</option>
+                <option value="USD/CHF">USD/CHF</option>
+                <option value="AUD/USD">AUD/USD</option>
+                <option value="NZD/USD">NZD/USD</option>
+                <option value="USD/CAD">USD/CAD</option>
+                <option value="EUR/GBP">EUR/GBP</option>
+                <option value="EUR/JPY">EUR/JPY</option>
+                <option value="GBP/JPY">GBP/JPY</option>
+                <option value="AUD/JPY">AUD/JPY</option>
+                <option value="NZD/JPY">NZD/JPY</option>
+                <option value="CAD/JPY">CAD/JPY</option>
+                <option value="CHF/JPY">CHF/JPY</option>
+                <option value="EUR/AUD">EUR/AUD</option>
+                <option value="GBP/AUD">GBP/AUD</option>
+                <option value="EUR/NZD">EUR/NZD</option>
+                <option value="GBP/NZD">GBP/NZD</option>
+                <option value="AUD/CAD">AUD/CAD</option>
+                <option value="NZD/CAD">NZD/CAD</option>
+                <option value="AUD/CHF">AUD/CHF</option>
+                <option value="NZD/CHF">NZD/CHF</option>
+                <option value="CAD/CHF">CAD/CHF</option>
+                <option value="EUR/CAD">EUR/CAD</option>
+                <option value="GBP/CAD">GBP/CAD</option>
+                <option value="EUR/CHF">EUR/CHF</option>
+                <option value="GBP/CHF">GBP/CHF</option>
+                <option value="CAD/CHF">CAD/CHF</option>
+            </select>
         </div>
-    </main>
+
+        <div class="form-group">
+            <label>2. Select Timeframe(s)</label>
+            <div class="timeframe-options" id="timeframe-options">
+                <label>
+                    <input type="checkbox" id="all-timeframes"> All Timeframes
+                </label>
+                <label><input type="checkbox" name="timeframe" value="1m"> 1m</label>
+                <label><input type="checkbox" name="timeframe" value="5m"> 5m</label>
+                <label><input type="checkbox" name="timeframe" value="15m"> 15m</label>
+                <label><input type="checkbox" name="timeframe" value="30m"> 30m</label>
+                <label><input type="checkbox" name="timeframe" value="1h"> 1h</label>
+                <label><input type="checkbox" name="timeframe" value="4h"> 4h</label>
+                <label><input type="checkbox" name="timeframe" value="1d"> 1d</label>
+                <label><input type="checkbox" name="timeframe" value="1w"> 1w</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button id="analyze-button" disabled>Analyze Now</button>
+        </div>
+        
+        <div id="loading-indicator" class="loading-indicator">
+            <p>Processing data and analyzing with Gemini 2.5 Flash... Please wait. ⏳</p>
+        </div>
+
+        <div id="results-display" style="display: none;">
+            </div>
+
+    </div>
 
     <script>
-        const symbols = [
-            'frxEURUSD', 'frxGBPUSD', 'frxUSDJPY', 'frxAUDUSD', 'frxUSDCAD', 'frxUSDCHF', 'frxNZDUSD', 'frxEURGBP', 'frxEURJPY', 'frxGBPJPY', 'frxAUDJPY', 'frxEURCAD', 'frxGBPCAD', 'frxEURAUD', 'frxGBPAUD',
-            'R_10', 'R_25', 'R_50', 'R_75', 'R_100',
-            '1HZ10V', '1HZ25V', '1HZ50V', '1HZ75V', '1HZ100V',
-            'BOOM1000', 'CRASH1000', 'JUMP100'
-        ];
+        document.addEventListener('DOMContentLoaded', () => {
+            const assetSelect = document.getElementById('asset-select');
+            const timeframeCheckboxes = document.querySelectorAll('input[name="timeframe"]');
+            const allTimeframesCheckbox = document.getElementById('all-timeframes');
+            const analyzeButton = document.getElementById('analyze-button');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const resultsDisplay = document.getElementById('results-display');
+            
+            // --- Helper Functions ---
 
-        // Store price ticks and history for each asset
-        const assetData = {};
+            /**
+             * Checks if the required inputs are selected to enable the button.
+             */
+            function checkInputs() {
+                const assetSelected = assetSelect.value !== "";
+                const timeframeSelected = Array.from(timeframeCheckboxes).some(cb => cb.checked);
+                analyzeButton.disabled = !(assetSelected && timeframeSelected);
+            }
+            
+            /**
+             * Handles the "All Timeframes" checkbox logic.
+             */
+            function handleAllTimeframes() {
+                const isChecked = allTimeframesCheckbox.checked;
+                timeframeCheckboxes.forEach(cb => {
+                    cb.checked = isChecked;
+                    cb.disabled = isChecked; // Disable individual boxes if 'All' is checked
+                });
+                checkInputs();
+            }
 
-        const assetsGrid = document.getElementById('assets-grid');
+            /**
+             * Formats a raw price level to a common forex standard (5 decimal places, or 3 for JPY pairs).
+             * @param {number} price - The raw price.
+             * @param {string} asset - The selected asset (e.g., EUR/USD).
+             * @returns {string} - The formatted price string.
+             */
+            function formatPrice(price, asset) {
+                if (typeof price !== 'number') return 'N/A';
+                // JPY pairs typically use 3 decimal places
+                const decimals = asset.includes('JPY') ? 3 : 5;
+                return price.toFixed(decimals);
+            }
 
-        // Dynamically create a card for each asset
-        symbols.forEach(symbol => {
-            assetData[symbol] = {
-                ticks: [],
-                lastPrice: null,
-                cardEl: null
-            };
+            /**
+             * Renders the analysis results to the UI.
+             * @param {object} data - The response data from the server.
+             */
+            function displayResults(data) {
+                const { asset, timeframes, currentPrice, analysis } = data;
+                
+                const formattedPrice = formatPrice(currentPrice, asset);
 
-            const card = document.createElement('div');
-            card.id = `card-${symbol}`;
-            card.className = "bg-slate-800 rounded-xl shadow-lg p-6 flex flex-col justify-between transition-transform transform hover:scale-105";
-            card.innerHTML = `
-                <div>
-                    <h2 class="text-xl sm:text-2xl font-bold text-white mb-2">${symbol}</h2>
-                    <p class="text-sm text-slate-400 mb-2">Current Price:</p>
-                    <p id="price-${symbol}" class="text-4xl font-extrabold text-white mb-4 transition-colors duration-200">--</p>
-                </div>
-                <div class="space-y-4">
-                    <button id="btn-${symbol}" class="w-full py-2 rounded-lg font-bold text-slate-800 bg-slate-400 opacity-50 cursor-not-allowed transition-all duration-300" disabled>
-                        Collecting more data...
-                    </button>
-                    <div id="analysis-${symbol}" class="bg-slate-700 rounded-lg p-3 text-sm text-slate-300">
-                        <span class="font-semibold text-slate-400">AI Analysis:</span> No analysis available.
+                const html = `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <span class="asset-info">${asset} Analysis</span>
+                            <span class="price-info">Current Price: ${formattedPrice}</span>
+                        </div>
+                        <p><strong>Timeframes Analyzed:</strong> ${timeframes.join(', ').toUpperCase()}</p>
+                        
+                        <div class="summary-box">
+                            <strong>Gemini Summary:</strong> ${analysis.analysis_summary}
+                        </div>
+
+                        <div class="tp-levels">
+                            <div class="tp-level-item">
+                                <div class="tp-label">Take Profit 1 (TP1)</div>
+                                <div class="tp-price">${formatPrice(analysis.tp_levels.TP1, asset)}</div>
+                            </div>
+                            <div class="tp-level-item">
+                                <div class="tp-label">Take Profit 2 (TP2)</div>
+                                <div class="tp-price">${formatPrice(analysis.tp_levels.TP2, asset)}</div>
+                            </div>
+                            <div class="tp-level-item">
+                                <div class="tp-label">Take Profit 3 (TP3)</div>
+                                <div class="tp-price">${formatPrice(analysis.tp_levels.TP3, asset)}</div>
+                            </div>
+                        </div>
+                        <small style="display:block; text-align: right; margin-top: 10px; color: #6c757d;">
+                            Generated at: ${new Date().toLocaleTimeString()}
+                        </small>
                     </div>
-                </div>
-            `;
-            assetsGrid.appendChild(card);
-            assetData[symbol].cardEl = card;
-        });
+                `;
+                
+                resultsDisplay.innerHTML = html;
+                resultsDisplay.style.display = 'block';
+            }
 
-        // Connect to Deriv WebSocket API
-        const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-
-        ws.onopen = function() {
-            console.log('WebSocket connection opened.');
-            // Subscribe to all assets
-            symbols.forEach(symbol => {
-                ws.send(JSON.stringify({
-                    "ticks": symbol,
-                    "subscribe": 1
-                }));
-            });
-        };
-
-        ws.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            if (data.msg_type === 'tick') {
-                const tick = data.tick;
-                const symbol = tick.symbol;
-                const price = parseFloat(tick.quote);
-                const epoch = tick.epoch;
-
-                const asset = assetData[symbol];
-                if (!asset) return;
-
-                const priceEl = document.getElementById(`price-${symbol}`);
-                const btnEl = document.getElementById(`btn-${symbol}`);
-
-                // Check for price change and flash
-                if (asset.lastPrice !== null) {
-                    if (price > asset.lastPrice) {
-                        priceEl.classList.remove('price-flash-down');
-                        priceEl.classList.add('price-flash-up');
-                    } else if (price < asset.lastPrice) {
-                        priceEl.classList.remove('price-flash-up');
-                        priceEl.classList.add('price-flash-down');
+            // --- Event Listeners ---
+            
+            // Check inputs on asset and timeframe change
+            assetSelect.addEventListener('change', checkInputs);
+            timeframeCheckboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    // Uncheck 'All Timeframes' if an individual one is changed
+                    if (cb.checked) {
+                        allTimeframesCheckbox.checked = false;
+                        timeframeCheckboxes.forEach(tfcb => tfcb.disabled = false); // Re-enable
                     }
+                    checkInputs();
+                });
+            });
+            allTimeframesCheckbox.addEventListener('change', handleAllTimeframes);
+
+            // Analysis button click handler
+            analyzeButton.addEventListener('click', async () => {
+                // 1. Get Selections
+                const selectedAsset = assetSelect.value;
+                const selectedTimeframes = Array.from(timeframeCheckboxes)
+                    .filter(cb => cb.checked && !cb.disabled)
+                    .map(cb => cb.value);
+
+                // Re-validate before sending
+                if (!selectedAsset || selectedTimeframes.length === 0) {
+                    alert("Please select an asset and at least one timeframe.");
+                    return;
                 }
                 
-                // Update price display
-                priceEl.innerText = price.toFixed(5);
-                asset.lastPrice = price;
+                // 2. UI State: Loading
+                analyzeButton.disabled = true;
+                loadingIndicator.style.display = 'block';
+                resultsDisplay.style.display = 'none';
+                resultsDisplay.innerHTML = '';
 
-                // Add tick to history
-                asset.ticks.push({ price, epoch });
-                if (asset.ticks.length > 28) {
-                    asset.ticks.shift(); // Keep only the last 20 ticks
-                }
-
-                // Check if enough data is collected to enable the button
-                if (asset.ticks.length >= 28 && btnEl.disabled) {
-                    btnEl.disabled = false;
-                    btnEl.classList.remove('bg-slate-400', 'opacity-50', 'cursor-not-allowed');
-                    btnEl.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
-                    btnEl.innerText = 'Analyze';
-                }
-            }
-        };
-
-        ws.onclose = function() {
-            console.log('WebSocket connection closed.');
-        };
-
-        ws.onerror = function(error) {
-            console.error('WebSocket Error:', error);
-        };
-
-        // Event listener for all "Analyze" buttons
-        assetsGrid.addEventListener('click', async (e) => {
-            if (e.target.tagName === 'BUTTON' && e.target.id.startsWith('btn-')) {
-                const symbol = e.target.id.replace('btn-', '');
-                const asset = assetData[symbol];
-                const analysisEl = document.getElementById(`analysis-${symbol}`);
-                const btnEl = e.target;
-
-                btnEl.disabled = true;
-                btnEl.innerText = 'Analyzing...';
-                analysisEl.innerHTML = `<span class="font-semibold text-slate-400">AI Analysis:</span> Analyzing...`;
-
+                // 3. Send Request to Backend
                 try {
                     const response = await fetch('/analyze', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            asset: symbol,
-                            data: asset.ticks,
-                        }),
+                            asset: selectedAsset,
+                            timeframes: selectedTimeframes
+                        })
                     });
 
+                    const data = await response.json();
+
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        throw new Error(data.error || 'Unknown server error.');
                     }
 
-                    const result = await response.json();
-                    analysisEl.innerHTML = `<span class="font-semibold text-slate-400">AI Analysis:</span> ${result.analysis}`;
+                    // 4. Display Results
+                    displayResults(data);
 
                 } catch (error) {
-                    console.error('Fetch error:', error);
-                    analysisEl.innerHTML = `<span class="font-semibold text-red-400">AI Analysis:</span> Failed to get analysis.`;
+                    // 4. Handle Error
+                    console.error("Analysis failed:", error);
+                    resultsDisplay.style.display = 'block';
+                    resultsDisplay.innerHTML = `<div class="result-card" style="background-color: #f8d7da; color: #721c24;">
+                        <strong>Analysis Error:</strong> ${error.message}. Please check server logs and API Key.
+                    </div>`;
                 } finally {
-                    btnEl.disabled = false;
-                    btnEl.innerText = 'Analyze';
+                    // 5. UI State: Ready
+                    loadingIndicator.style.display = 'none';
+                    checkInputs(); // Re-enable if inputs are still valid
                 }
-            }
+            });
+
+            // Initial check
+            checkInputs();
         });
     </script>
 </body>
-</html>
-    
+    </html>
