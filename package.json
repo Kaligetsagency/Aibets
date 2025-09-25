@@ -1,27 +1,13 @@
 {
-  "name": "ai-forex-analyzer-enhanced",
-  "version": "2.0.0",
-  "description": "An AI-powered forex and synthetic asset analysis web application with charting and technical indicators.",
+  "name": "forex-analysis-app",
+  "version": "1.0.0",
+  "description": "A full-stack AI Forex Analysis web application.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [
-    "forex",
-    "ai",
-    "nodejs",
-    "express",
-    "gemini",
-    "trading",
-    "technical-analysis"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "axios": "^1.7.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "technicalindicators": "^3.1.0"
+    "express": "^4.18.2"
   }
 }
