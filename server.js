@@ -30,6 +30,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- Helper Functions ---
 
 /**
+ * Maps timeframes (e.g., '1m') to their granularity in seconds (e.g., 60).
+ */
+const TIME_FRAME_MAP = {
+    '1m': 60,
+    '5m': 300,
+    '15m': 900,
+    '30m': 1800,
+    '1h': 3600,
+    '4h': 14400,
+    '1d': 86400,
+    '1w': 604800
+};
+
+/**
  * Fetches OHLC (candles) data from the Deriv WebSocket API.
  * @param {string} symbol - The market symbol (e.g., 'frxEURUSD').
  * @param {string} granularity - The timeframe in seconds (e.g., '60' for 1m).
@@ -38,11 +52,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 function fetchOHLCData(symbol, granularity) {
     return new Promise((resolve, reject) => {
         const ws = new WebSocket(DERIV_WS_URL);
-        const candleCount = 200; // Requesting 200 candles for solid analysis
+        const candleCount = 200; 
+        let isResolvedOrRejected = false;
 
         ws.on('open', () => {
             console.log(`WebSocket connected. Requesting ${symbol} data at ${granularity}s granularity.`);
-            // This request correctly omits the 'subscribe' field as it's a history request
             ws.send(JSON.stringify({
                 "candles_history": symbol,
                 "end": "latest",
@@ -57,49 +71,73 @@ function fetchOHLCData(symbol, granularity) {
             const response = JSON.parse(data);
 
             if (response.error) {
-                ws.close();
-                return reject(new Error(`Deriv API Error: ${response.error.message}`));
+                if (!isResolvedOrRejected) {
+                    isResolvedOrRejected = true;
+                    ws.close();
+                    // Log the specific Deriv error for debugging
+                    console.error(`Deriv API Error for ${symbol} (${granularity}s):`, response.error.message);
+                    return reject(new Error(`Deriv API Error: ${response.error.message} for ${symbol} (${granularity}s)`));
+                }
+                return;
             }
 
             if (response.msg_type === 'candles_history') {
-                ws.close();
-                // Format data for easier Gemini consumption: time, open, high, low, close
-                const candles = response.candles.map(c => ({
-                    time: new Date(c.epoch * 1000).toISOString(),
-                    open: parseFloat(c.open),
-                    high: parseFloat(c.high),
-                    low: parseFloat(c.low),
-                    close: parseFloat(c.close)
-                }));
-                resolve(candles);
+                if (!isResolvedOrRejected) {
+                    isResolvedOrRejected = true;
+                    ws.close();
+                    
+                    if (!response.candles || response.candles.length === 0) {
+                        // Crucial check: reject if API returns a success message but zero data
+                        return reject(new Error(`Deriv API returned 0 candles for ${symbol} (${granularity}s).`));
+                    }
+                    
+                    const candles = response.candles.map(c => ({
+                        time: new Date(c.epoch * 1000).toISOString(),
+                        open: parseFloat(c.open),
+                        high: parseFloat(c.high),
+                        low: parseFloat(c.low),
+                        close: parseFloat(c.close)
+                    }));
+                    resolve(candles);
+                }
             }
         });
 
+        // Catches low-level network errors
         ws.on('error', (error) => {
-            reject(error);
+            if (!isResolvedOrRejected) {
+                isResolvedOrRejected = true;
+                ws.close();
+                reject(new Error(`WebSocket connection error for ${symbol}: ${error.message}`));
+            }
         });
 
-        ws.on('close', () => {
-            console.log('WebSocket closed.');
+        // Catches unexpected WebSocket closures
+        ws.on('close', (code, reason) => {
+            if (!isResolvedOrRejected && code !== 1000) { 
+                // Code 1000 is a normal closure; other codes indicate a problem
+                isResolvedOrRejected = true;
+                reject(new Error(`WebSocket for ${symbol} closed unexpectedly with code ${code}.`));
+            }
         });
     });
 }
 
 /**
  * Fetches the current market price (latest tick) from the Deriv WebSocket API.
- * * FIX APPLIED HERE: The "subscribe" parameter is omitted for a single-shot request,
- * resolving the "Input validation failed: subscribe" error.
- * * @param {string} symbol - The market symbol (e.g., 'frxEURUSD').
+ * FIX: The "subscribe" parameter is omitted for a single-shot request.
+ * @param {string} symbol - The market symbol (e.g., 'frxEURUSD').
  * @returns {Promise<number>} - A promise that resolves with the current price.
  */
 function fetchCurrentPrice(symbol) {
     return new Promise((resolve, reject) => {
         const ws = new WebSocket(DERIV_WS_URL);
+        let isResolvedOrRejected = false;
 
         ws.on('open', () => {
             ws.send(JSON.stringify({
                 "ticks": symbol,
-                // Omitted: "subscribe": 0  <-- Removing this fixes the validation error
+                // Omitted: "subscribe": 0 
             }));
         });
 
@@ -107,39 +145,40 @@ function fetchCurrentPrice(symbol) {
             const response = JSON.parse(data);
 
             if (response.error) {
-                ws.close();
-                return reject(new Error(`Deriv API Error: ${response.error.message}`));
+                if (!isResolvedOrRejected) {
+                    isResolvedOrRejected = true;
+                    ws.close();
+                    return reject(new Error(`Deriv API Error: ${response.error.message} for current price of ${symbol}`));
+                }
+                return;
             }
 
             if (response.msg_type === 'tick') {
-                ws.close();
-                resolve(parseFloat(response.tick.quote));
+                if (!isResolvedOrRejected) {
+                    isResolvedOrRejected = true;
+                    ws.close();
+                    resolve(parseFloat(response.tick.quote));
+                }
             }
         });
 
         ws.on('error', (error) => {
-            reject(error);
+            if (!isResolvedOrRejected) {
+                isResolvedOrRejected = true;
+                ws.close();
+                reject(new Error(`WebSocket connection error for price: ${error.message}`));
+            }
         });
         
-        ws.on('close', () => {
-            // console.log('WebSocket closed.');
+        ws.on('close', (code) => {
+             if (!isResolvedOrRejected && code !== 1000) {
+                isResolvedOrRejected = true;
+                reject(new Error(`WebSocket for price closed unexpectedly with code ${code}.`));
+            }
         });
     });
 }
 
-/**
- * Maps timeframes (e.g., '1m') to their granularity in seconds (e.g., 60).
- */
-const TIME_FRAME_MAP = {
-    '1m': 60,
-    '5m': 300,
-    '15m': 900,
-    '30m': 1800,
-    '1h': 3600,
-    '4h': 14400,
-    '1d': 86400,
-    '1w': 604800
-};
 
 // --- API Route ---
 
@@ -150,7 +189,7 @@ app.post('/analyze', async (req, res) => {
         return res.status(400).json({ error: "Missing asset or timeframe selection." });
     }
 
-    // Deriv symbols are prefixed with 'frx' for forex
+    // Convert EUR/USD -> frxEURUSD
     const derivSymbol = `frx${asset.replace('/', '').toUpperCase()}`;
     
     try {
@@ -162,8 +201,9 @@ app.post('/analyze', async (req, res) => {
             fetchOHLCData(derivSymbol, TIME_FRAME_MAP[tf])
                 .then(data => ({ timeframe: tf, data: data }))
                 .catch(err => {
-                    console.error(`Error fetching data for ${tf}:`, err.message);
-                    return { timeframe: tf, data: [], error: err.message }; // Return empty data on error
+                    // Log the detailed error from the promise rejection, but don't stop the Promise.all
+                    console.error(`Error fetching data for ${derivSymbol} on ${tf}:`, err.message);
+                    return { timeframe: tf, data: [], error: err.message }; 
                 })
         );
         
@@ -171,14 +211,18 @@ app.post('/analyze', async (req, res) => {
         
         // 3. Prepare the Prompt for Gemini
         const dataForGemini = allOhlcData
-            .filter(item => item.data.length > 0) // Only include successful fetches
+            // Only include successfully fetched data with candles
+            .filter(item => item.data.length > 0) 
             .map(item => ({
                 timeframe: item.timeframe,
-                candles: item.data // The array of candle objects
+                candles: item.data 
             }));
 
         if (dataForGemini.length === 0) {
-             return res.status(500).json({ error: "Could not fetch any market data for analysis." });
+             // If all promises failed, throw the original error message
+             return res.status(500).json({ 
+                 error: "Could not fetch any market data for analysis. Check if the symbol is correct or if the data exists for the selected timeframes (e.g., try 1h or 1d)." 
+             });
         }
 
         const prompt = `
@@ -244,7 +288,7 @@ app.post('/analyze', async (req, res) => {
         // 5. Send successful response to client
         res.json({
             asset: asset,
-            timeframes: timeframes,
+            timeframes: dataForGemini.map(d => d.timeframe), // Only send back the timeframes that actually worked
             currentPrice: currentPrice,
             analysis: geminiResult,
             timestamp: new Date().toISOString()
