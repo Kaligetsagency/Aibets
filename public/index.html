@@ -135,12 +135,12 @@
 
                 // Add tick to history
                 asset.ticks.push({ price, epoch });
-                if (asset.ticks.length > 20) {
+                if (asset.ticks.length > 2800) {
                     asset.ticks.shift(); // Keep only the last 20 ticks
                 }
 
                 // Check if enough data is collected to enable the button
-                if (asset.ticks.length >= 20 && btnEl.disabled) {
+                if (asset.ticks.length >= 2800 && btnEl.disabled) {
                     btnEl.disabled = false;
                     btnEl.classList.remove('bg-slate-400', 'opacity-50', 'cursor-not-allowed');
                     btnEl.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
