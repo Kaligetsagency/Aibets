@@ -9,17 +9,13 @@ const port = 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // Serve static files from the same directory
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Gemini API Configuration ---
 // Note: This API key is left empty to be populated by the runtime environment.
 const API_KEY = "";
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
-
-// Root route to serve the HTML file
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 // POST endpoint for AI analysis
 app.post('/analyze', async (req, res) => {
