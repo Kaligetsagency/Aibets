@@ -1,8 +1,13 @@
 {
   "name": "gemini-forex-tp-analyzer",
-  // ... other fields
+  "version": "1.0.0",
+  "description": "A real-time forex analysis tool powered by Google Gemini 2.5 Flash.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
-    "@google/genai": "^0.1.0",  <-- This must be present
+    "@google/genai": "^0.1.0",
     "axios": "^1.6.8",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
