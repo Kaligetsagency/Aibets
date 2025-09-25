@@ -25,8 +25,8 @@ const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-
 app.post('/analyze', async (req, res) => {
   try {
     const { asset, data } = req.body;
-    if (!asset || !data) {
-      return res.status(400).json({ error: 'Missing asset or data in request body.' });
+    if (!asset || !data || data.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty asset or data in request body.' });
     }
 
     if (!API_KEY) {
@@ -36,14 +36,15 @@ app.post('/analyze', async (req, res) => {
 
     console.log(`Received analysis request for ${asset} with ${data.length} ticks.`);
 
-    // Format the tick data for the prompt
+    // Extract the latest price from the data
+    const latestPrice = data[data.length - 1].price;
     const formattedData = data.map(tick => `(${tick.epoch}, ${tick.price})`).join(', ');
 
-    // Construct the prompt for the Gemini API
+    // Construct the prompt for the Gemini API using "Candlestick Range Theory"
     const prompt = {
       contents: [{
         parts: [{
-          text: `You are an expert forex and derived indices analyst. Analyze the following real-time price tick data for the asset "${asset}" to provide a concise, one-sentence market sentiment (Bullish, Bearish, or Neutral) and a short-term price prediction for the next 5-10 minutes. The data is in (timestamp, price) format: [${formattedData}]. Focus only on sentiment and prediction, no fluff. Do not provide disclaimers.`
+          text: `You are an expert forex and derived indices analyst specializing in Candlestick Range Theory (CRT). Based on the following real-time price tick data for the asset "${asset}" and the most recent price of ${latestPrice}, provide a concise, one-sentence analysis. State the market sentiment (Bullish, Bearish, or Neutral) and recommend a Take Profit (TP) price and a Stop Loss (SL) price. The data is in (timestamp, price) format: [${formattedData}]. Focus only on sentiment, TP, and SL. Do not provide any disclaimers or additional text.`
         }]
       }]
     };
@@ -79,3 +80,4 @@ app.post('/analyze', async (req, res) => {
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+        
